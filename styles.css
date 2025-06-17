@@ -1,0 +1,73 @@
+body {
+  margin: 0;
+  padding: 0;
+  font-family: Arial, sans-serif;
+  overflow: hidden;
+}
+
+#controls {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 320px;
+  height: 100vh;
+  background-color: #f0f0f0;
+  padding: 20px;
+  box-sizing: border-box;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+}
+
+.button-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+#canvas {
+  position: absolute;
+  left: 200px;
+  top: 0;
+  cursor: crosshair;
+}
+
+button {
+  padding: 10px;
+  font-size: 14px;
+  cursor: pointer;
+  border: none;
+  border-radius: 5px;
+  white-space: nowrap;
+}
+
+#startBtn {
+  background-color: #4caf50;
+  color: white;
+}
+
+#stopBtn {
+  background-color: #f44336;
+  color: white;
+}
+
+#clearBtn {
+  background-color: #008cba;
+  color: white;
+  grid-column: span 2;
+}
+
+#status {
+  grid-column: span 2;
+  text-align: center;
+  font-weight: bold;
+  padding: 10px;
+  background-color: #e0e0e0;
+  border-radius: 5px;
+}
+
+#webgazerVideoContainer {
+  z-index: 1000;
+  top: 165px !important;
+}
