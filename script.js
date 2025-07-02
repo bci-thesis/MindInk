@@ -268,7 +268,7 @@ class EyeTrackingPaint {
     this.eraseBtn.disabled = true;
     this.calibrateBtn.disabled = true;
 
-    // Define calibration points (9-point grid)
+    // Define calibration points (16-point grid)
     const controlWidth = 320; // Width of the control panel
     const margin = {
       left: controlWidth + 100, // Account for control panel
@@ -281,9 +281,9 @@ class EyeTrackingPaint {
     const width = window.innerWidth - margin.left - margin.right;
     const height = window.innerHeight - margin.top - margin.bottom;
     
-    // Calculate point positions with better distribution
-    const cols = [0.2, 0.5, 0.8]; // Proportional positions for better spread
-    const rows = [0.2, 0.5, 0.8];
+    // Calculate point positions with better distribution (4x4 grid)
+    const cols = [0.15, 0.38, 0.62, 0.85]; // Four columns
+    const rows = [0.15, 0.38, 0.62, 0.85]; // Four rows
     
     this.calibrationPoints = [];
     for (let row of rows) {
@@ -374,7 +374,7 @@ class EyeTrackingPaint {
     animate();
 
     // Update status with point position info
-    this.updateStatus(`Look at point ${this.currentCalibrationPoint + 1}/9 (${Math.round(point.x)}, ${Math.round(point.y)}) and focus for 2 seconds`);
+    this.updateStatus(`Look at point ${this.currentCalibrationPoint + 1}/16 (${Math.round(point.x)}, ${Math.round(point.y)}) and focus for 2 seconds`);
 
     // Add click and space handlers
     const handlePointCalibration = () => {
