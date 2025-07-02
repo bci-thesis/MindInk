@@ -171,11 +171,7 @@ class EyeTrackingPaint {
   }
 
   stopDrawing() {
-    if (this.isDrawing && this.startPoint) {
-      const endPoint = { ...this.currentGaze };
-      this.lines.push({ start: this.startPoint, end: endPoint });
-      this.redrawCanvas();
-
+    if (this.isDrawing) {
       this.isDrawing = false;
       this.startPoint = null;
       this.updateStatus("Ready");
