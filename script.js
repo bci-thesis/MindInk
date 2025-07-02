@@ -1,134 +1,103 @@
-class EyeTrackingPaint {
-  constructor() {
-    this.canvas = document.getElementById("canvas");
-    this.ctx = this.canvas.getContext("2d");
-    this.startBtn = document.getElementById("startBtn");
-    this.stopBtn = document.getElementById("stopBtn");
-    this.clearBtn = document.getElementById("clearBtn");
-    this.status = document.getElementById("status");
+let canvas = document.getElementById('canvas');
+let ctx = canvas.getContext('2d');
+let isDrawing = false;
+let lastX = 0;
+let lastY = 0;
+let eyeX = 0;
+let eyeY = 0;
 
-    this.isDrawing = false;
-    this.startPoint = null;
-    this.currentGaze = { x: 0, y: 0 };
-    this.lines = [];
+// Set canvas size
+function resizeCanvas() {
+  canvas.width = window.innerWidth - 320;
+  canvas.height = window.innerHeight;
+}
+resizeCanvas();
+window.addEventListener('resize', resizeCanvas);
 
-    this.init();
+// MediaPipe Face Mesh setup
+const video = document.getElementById('input-video');
+const outputCanvas = document.getElementById('output-canvas');
+const outputCtx = outputCanvas.getContext('2d');
+
+const faceMesh = new FaceMesh({
+  locateFile: (file) => {
+    return `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`;
   }
+});
 
-  init() {
-    this.setupCanvas();
-    this.setupEventListeners();
-    this.setupWebGazer();
-    this.stopBtn.disabled = true;
-  }
+faceMesh.setOptions({
+  maxNumFaces: 1,
+  refineLandmarks: true,
+  minDetectionConfidence: 0.5,
+  minTrackingConfidence: 0.5
+});
 
-  setupCanvas() {
-    const resizeCanvas = () => {
-      this.canvas.width = window.innerWidth;
-      this.canvas.height = window.innerHeight;
-    };
+faceMesh.onResults(onResults);
 
-    resizeCanvas();
-    window.addEventListener("resize", resizeCanvas);
-  }
+// Camera setup
+const camera = new Camera(video, {
+  onFrame: async () => {
+    await faceMesh.send({image: video});
+  },
+  width: 320,
+  height: 240
+});
+camera.start();
 
-  setupEventListeners() {
-    window.addEventListener("keydown", this.handleKeyPress.bind(this));
-    this.startBtn.addEventListener("click", this.startDrawing.bind(this));
-    this.stopBtn.addEventListener("click", this.stopDrawing.bind(this));
-    this.clearBtn.addEventListener("click", this.clearCanvas.bind(this));
-  }
-
-  setupWebGazer() {
-    webgazer.setGazeListener(this.handleGaze.bind(this)).begin();
-  }
-
-  handleKeyPress(event) {
-    if (event.key === "s") {
-      this.startDrawing();
-    } else if (event.key === "x") {
-      this.stopDrawing();
-    } else if (event.key === "c") {
-      this.clearCanvas();
+function onResults(results) {
+  if (results.multiFaceLandmarks) {
+    for (const landmarks of results.multiFaceLandmarks) {
+      // Get eye landmarks (indices 33 and 133 for left and right eye centers)
+      const leftEye = landmarks[33];
+      const rightEye = landmarks[133];
+      
+      // Calculate average eye position
+      eyeX = (leftEye.x + rightEye.x) / 2;
+      eyeY = (leftEye.y + rightEye.y) / 2;
+      
+      // Convert eye position to canvas coordinates and mirror the X coordinate
+      const canvasX = ((1 - eyeX) * canvas.width);
+      const canvasY = eyeY * canvas.height;
+      
+      if (isDrawing) {
+        ctx.beginPath();
+        ctx.moveTo(lastX, lastY);
+        ctx.lineTo(canvasX, canvasY);
+        ctx.stroke();
+      }
+      
+      lastX = canvasX;
+      lastY = canvasY;
     }
-  }
-
-  handleGaze(data) {
-    if (!data) return;
-
-    this.currentGaze.x = data.x - 160;
-    this.currentGaze.y = data.y;
-  }
-
-  startDrawing() {
-    if (!this.isDrawing) {
-      this.isDrawing = true;
-      this.startPoint = { ...this.currentGaze };
-      this.updateStatus("Drawing...");
-      this.startBtn.disabled = true;
-      this.stopBtn.disabled = false;
-      this.drawGazeCursor(this.currentGaze.x, this.currentGaze.y);
-    }
-  }
-
-  stopDrawing() {
-    if (this.isDrawing && this.startPoint) {
-      const endPoint = { ...this.currentGaze };
-      this.lines.push({ start: this.startPoint, end: endPoint });
-      this.redrawCanvas();
-
-      this.isDrawing = false;
-      this.startPoint = null;
-      this.updateStatus("Ready");
-      this.startBtn.disabled = false;
-      this.stopBtn.disabled = true;
-    }
-  }
-
-  clearCanvas() {
-    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-    this.lines = [];
-    this.updateStatus("Canvas cleared");
-    setTimeout(() => this.updateStatus("Ready"), 2000);
-  }
-
-  redrawCanvas() {
-    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-    this.drawAllLines();
-  }
-
-  drawGazeCursor(x, y) {
-    if (x < 0 || y < 0 || x > this.canvas.width || y > this.canvas.height)
-      return;
-
-    this.ctx.save();
-    this.ctx.fillStyle = "red";
-    this.ctx.beginPath();
-    this.ctx.arc(x, y, 5, 0, 2 * Math.PI);
-    this.ctx.fill();
-    this.ctx.restore();
-  }
-
-  drawLine(start, end) {
-    this.ctx.save();
-    this.ctx.strokeStyle = "black";
-    this.ctx.lineWidth = 2;
-    this.ctx.beginPath();
-    this.ctx.moveTo(start.x, start.y);
-    this.ctx.lineTo(end.x, end.y);
-    this.ctx.stroke();
-    this.ctx.restore();
-  }
-
-  drawAllLines() {
-    this.lines.forEach((line) => this.drawLine(line.start, line.end));
-  }
-
-  updateStatus(message) {
-    this.status.textContent = `Status: ${message}`;
   }
 }
 
-document.addEventListener("DOMContentLoaded", () => {
-  new EyeTrackingPaint();
+// Drawing controls
+document.getElementById('startBtn').addEventListener('click', () => {
+  isDrawing = true;
+  document.getElementById('status').textContent = 'Status: Drawing';
+});
+
+document.getElementById('stopBtn').addEventListener('click', () => {
+  isDrawing = false;
+  document.getElementById('status').textContent = 'Status: Stopped';
+});
+
+document.getElementById('clearBtn').addEventListener('click', () => {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  document.getElementById('status').textContent = 'Status: Canvas Cleared';
+});
+
+// Keyboard shortcuts
+document.addEventListener('keydown', (e) => {
+  if (e.key === 's') {
+    isDrawing = true;
+    document.getElementById('status').textContent = 'Status: Drawing';
+  } else if (e.key === 'x') {
+    isDrawing = false;
+    document.getElementById('status').textContent = 'Status: Stopped';
+  } else if (e.key === 'c') {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    document.getElementById('status').textContent = 'Status: Canvas Cleared';
+  }
 });

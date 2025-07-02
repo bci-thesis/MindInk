@@ -4,7 +4,9 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Eye-Tracking Paint App</title>
-    <script src="https://webgazer.cs.brown.edu/webgazer.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils"></script>
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
@@ -14,6 +16,10 @@
         <button id="stopBtn">Stop Drawing (x)</button>
         <button id="clearBtn">Clear Canvas (c)</button>
         <div id="status">Status: Ready</div>
+      </div>
+      <div id="camera-container">
+        <video id="input-video" playsinline></video>
+        <canvas id="output-canvas"></canvas>
       </div>
     </div>
 
