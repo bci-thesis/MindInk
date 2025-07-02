@@ -65,6 +65,13 @@ button {
   text-align: center;
 }
 
+#calibrateBtn {
+  background-color: #9c27b0;
+  color: white;
+  grid-column: span 2;
+  text-align: center;
+}
+
 #status {
   grid-column: span 2;
   text-align: center;
@@ -76,5 +83,5 @@ button {
 
 #webgazerVideoContainer {
   z-index: 1000;
-  top: 165px !important;
+  top: 500px !important;
 }
