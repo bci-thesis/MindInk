@@ -5,12 +5,14 @@ class EyeTrackingPaint {
     this.startBtn = document.getElementById("startBtn");
     this.stopBtn = document.getElementById("stopBtn");
     this.clearBtn = document.getElementById("clearBtn");
+    this.eraseBtn = document.getElementById("eraseBtn");
     this.status = document.getElementById("status");
 
     this.isDrawing = false;
     this.startPoint = null;
     this.currentGaze = { x: 0, y: 0 };
     this.lines = [];
+    this.isErasing = false;
 
     this.init();
   }
@@ -37,6 +39,7 @@ class EyeTrackingPaint {
     this.startBtn.addEventListener("click", this.startDrawing.bind(this));
     this.stopBtn.addEventListener("click", this.stopDrawing.bind(this));
     this.clearBtn.addEventListener("click", this.clearCanvas.bind(this));
+    this.eraseBtn.addEventListener("click", this.toggleEraser.bind(this));
   }
 
   setupWebGazer() {
@@ -50,6 +53,8 @@ class EyeTrackingPaint {
       this.stopDrawing();
     } else if (event.key === "c") {
       this.clearCanvas();
+    } else if (event.key === "e") {
+      this.toggleEraser();
     }
   }
 
@@ -58,6 +63,10 @@ class EyeTrackingPaint {
 
     this.currentGaze.x = data.x - 160;
     this.currentGaze.y = data.y;
+
+    if (this.isErasing) {
+      this.eraseAt(this.currentGaze.x, this.currentGaze.y);
+    }
   }
 
   startDrawing() {
@@ -126,6 +135,27 @@ class EyeTrackingPaint {
 
   updateStatus(message) {
     this.status.textContent = `Status: ${message}`;
+  }
+
+  toggleEraser() {
+    this.isErasing = !this.isErasing;
+    if (this.isErasing) {
+      this.isDrawing = false;
+      this.startBtn.disabled = true;
+      this.stopBtn.disabled = true;
+      this.eraseBtn.textContent = "Stop Erasing (e)";
+      this.updateStatus("Erasing...");
+    } else {
+      this.startBtn.disabled = false;
+      this.stopBtn.disabled = false;
+      this.eraseBtn.textContent = "Erase (e)";
+      this.updateStatus("Ready");
+    }
+  }
+
+  eraseAt(x, y) {
+    const eraserSize = 30; // You can adjust the eraser size
+    this.ctx.clearRect(x - eraserSize / 2, y - eraserSize / 2, eraserSize, eraserSize);
   }
 }
 

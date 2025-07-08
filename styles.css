@@ -58,6 +58,13 @@ button {
   grid-column: span 2;
 }
 
+#eraseBtn {
+  background-color: orange;
+  color: white;
+  grid-column: span 2;
+  text-align: center;
+}
+
 #status {
   grid-column: span 2;
   text-align: center;
