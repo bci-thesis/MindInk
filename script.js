@@ -5,6 +5,20 @@ let lastX = 0;
 let lastY = 0;
 let eyeX = 0;
 let eyeY = 0;
+let scalingFactor = 2.0; // Adjust this to control movement sensitivity
+let lastCursorX = 0;
+let lastCursorY = 0;
+
+// Create cursor element
+const cursor = document.createElement('div');
+cursor.style.width = '10px';
+cursor.style.height = '10px';
+cursor.style.backgroundColor = 'red';
+cursor.style.borderRadius = '50%';
+cursor.style.position = 'fixed';
+cursor.style.pointerEvents = 'none';
+cursor.style.zIndex = '1000';
+document.body.appendChild(cursor);
 
 // Set canvas size
 function resizeCanvas() {
@@ -56,8 +70,13 @@ function onResults(results) {
       eyeY = (leftEye.y + rightEye.y) / 2;
       
       // Convert eye position to canvas coordinates and mirror the X coordinate
-      const canvasX = ((1 - eyeX) * canvas.width);
-      const canvasY = eyeY * canvas.height;
+      // Apply scaling factor to amplify movement from the center
+      const centerX = canvas.width / 2;
+      const centerY = canvas.height / 2;
+      const offsetX = (eyeX - 0.5) * scalingFactor;
+      const offsetY = (eyeY - 0.5) * scalingFactor;
+      const canvasX = centerX - (offsetX * canvas.width);
+      const canvasY = centerY + (offsetY * canvas.height);
       
       if (isDrawing) {
         ctx.beginPath();
@@ -65,6 +84,10 @@ function onResults(results) {
         ctx.lineTo(canvasX, canvasY);
         ctx.stroke();
       }
+      
+      // Update cursor position
+      cursor.style.left = (canvas.offsetLeft + canvasX - 5) + 'px';
+      cursor.style.top = (canvas.offsetTop + canvasY - 5) + 'px';
       
       lastX = canvasX;
       lastY = canvasY;
@@ -99,5 +122,13 @@ document.addEventListener('keydown', (e) => {
   } else if (e.key === 'c') {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     document.getElementById('status').textContent = 'Status: Canvas Cleared';
+  } else if (e.key === 'ArrowUp') {
+    scalingFactor += 0.5;
+    document.getElementById('status').textContent = `Status: Sensitivity ${scalingFactor.toFixed(1)}x`;
+  } else if (e.key === 'ArrowDown') {
+    if (scalingFactor > 0.5) {
+      scalingFactor -= 0.5;
+      document.getElementById('status').textContent = `Status: Sensitivity ${scalingFactor.toFixed(1)}x`;
+    }
   }
 });
