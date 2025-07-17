@@ -7,6 +7,7 @@ let lastY = 0;
 let eyeX = 0;
 let eyeY = 0;
 let scalingFactor = 2.0; // Adjust this to control movement sensitivity
+let currentColor = '#000000';
 
 // Undo/Redo functionality
 let undoStack = [];
@@ -130,6 +131,7 @@ function onResults(results) {
         } else {
           ctx.globalCompositeOperation = 'source-over';
           ctx.lineWidth = 2; // Normal drawing
+          ctx.strokeStyle = currentColor; // Use selected color
         }
         
         ctx.stroke();
@@ -170,6 +172,26 @@ document.getElementById('eraserBtn').addEventListener('click', () => {
   document.getElementById('status').textContent = `Status: ${isErasing ? 'Eraser' : 'Draw'} Mode`;
 });
 
+// Color button functionality
+const colorButtons = document.querySelectorAll('.color-btn');
+
+// Set initial active color (black)
+document.getElementById('blackColor').classList.add('active');
+
+colorButtons.forEach(button => {
+  button.addEventListener('click', () => {
+    // Remove active class from all buttons
+    colorButtons.forEach(btn => btn.classList.remove('active'));
+    
+    // Add active class to clicked button
+    button.classList.add('active');
+    
+    // Set the current color
+    currentColor = button.dataset.color;
+    document.getElementById('status').textContent = `Status: Color changed to ${button.textContent}`;
+  });
+});
+
 document.getElementById('undoBtn').addEventListener('click', () => {
   undo();
   document.getElementById('status').textContent = 'Status: Undo';
@@ -204,6 +226,30 @@ document.addEventListener('keydown', (e) => {
   } else if (e.key === 'y') {
     redo();
     document.getElementById('status').textContent = 'Status: Redo';
+  } else if (e.key === '1') {
+    // Select Red
+    colorButtons.forEach(btn => btn.classList.remove('active'));
+    document.getElementById('redColor').classList.add('active');
+    currentColor = '#ff0000';
+    document.getElementById('status').textContent = 'Status: Color changed to Red';
+  } else if (e.key === '2') {
+    // Select Green
+    colorButtons.forEach(btn => btn.classList.remove('active'));
+    document.getElementById('greenColor').classList.add('active');
+    currentColor = '#00ff00';
+    document.getElementById('status').textContent = 'Status: Color changed to Green';
+  } else if (e.key === '3') {
+    // Select Blue
+    colorButtons.forEach(btn => btn.classList.remove('active'));
+    document.getElementById('blueColor').classList.add('active');
+    currentColor = '#0000ff';
+    document.getElementById('status').textContent = 'Status: Color changed to Blue';
+  } else if (e.key === '4') {
+    // Select Black
+    colorButtons.forEach(btn => btn.classList.remove('active'));
+    document.getElementById('blackColor').classList.add('active');
+    currentColor = '#000000';
+    document.getElementById('status').textContent = 'Status: Color changed to Black';
   } else if (e.key === 'ArrowUp') {
     scalingFactor += 0.5;
     document.getElementById('status').textContent = `Status: Sensitivity ${scalingFactor.toFixed(1)}x`;

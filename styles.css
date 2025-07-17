@@ -36,6 +36,24 @@ body {
   gap: 10px;
 }
 
+#canvas-controls-left {
+  position: fixed;
+  left: 330px;
+  top: 10px;
+  z-index: 1001;
+  display: flex;
+  gap: 10px;
+}
+
+#canvas-controls-right {
+  position: fixed;
+  right: 10px;
+  top: 10px;
+  z-index: 1001;
+  display: flex;
+  gap: 10px;
+}
+
 #canvas {
   position: absolute;
   left: 320px;
@@ -81,6 +99,40 @@ button {
 #redoBtn {
   background-color: #ff9800;
   color: white;
+}
+
+.color-btn {
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: bold;
+  border: 2px solid transparent;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+#redColor {
+  background-color: #ca0000;
+  color: white;
+}
+
+#greenColor {
+  background-color: #00b800;
+  color: black;
+}
+
+#blueColor {
+  background-color: #000091;
+  color: white;
+}
+
+#blackColor {
+  background-color: #000000;
+  color: white;
+}
+
+.color-btn.active {
+  border-color: #ffffff;
+  box-shadow: 0 0 5px rgba(255, 255, 255, 0.8);
 }
 
 #status {
