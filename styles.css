@@ -26,6 +26,16 @@ body {
   margin-bottom: 20px;
 }
 
+#canvas-controls {
+  position: fixed;
+  left: calc(320px + (100vw - 320px) / 2);
+  top: 10px;
+  transform: translateX(-50%);
+  z-index: 1001;
+  display: flex;
+  gap: 10px;
+}
+
 #canvas {
   position: absolute;
   left: 320px;
@@ -61,6 +71,16 @@ button {
   background-color: #cdd8f5;
   color: rgb(0, 0, 0);
   grid-column: span 2;
+}
+
+#undoBtn {
+  background-color: #ff9800;
+  color: white;
+}
+
+#redoBtn {
+  background-color: #ff9800;
+  color: white;
 }
 
 #status {
