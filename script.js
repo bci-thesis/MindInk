@@ -7,6 +7,45 @@ let lastY = 0;
 let eyeX = 0;
 let eyeY = 0;
 let scalingFactor = 2.0; // Adjust this to control movement sensitivity
+
+// Undo/Redo functionality
+let undoStack = [];
+let redoStack = [];
+
+function saveCanvasState() {
+  redoStack = []; // Clear redo stack when new action is taken
+  undoStack.push(canvas.toDataURL());
+  // Limit undo stack to 20 states to prevent memory issues
+  if (undoStack.length > 20) {
+    undoStack.shift();
+  }
+}
+
+function undo() {
+  if (undoStack.length > 0) {
+    redoStack.push(canvas.toDataURL());
+    const previousState = undoStack.pop();
+    restoreCanvasState(previousState);
+  }
+}
+
+function redo() {
+  if (redoStack.length > 0) {
+    undoStack.push(canvas.toDataURL());
+    const nextState = redoStack.pop();
+    restoreCanvasState(nextState);
+  }
+}
+
+function restoreCanvasState(dataURL) {
+  const img = new Image();
+  img.onload = function() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(img, 0, 0);
+  };
+  img.src = dataURL;
+}
+
 let lastCursorX = 0;
 let lastCursorY = 0;
 
@@ -108,6 +147,9 @@ function onResults(results) {
 
 // Drawing controls
 document.getElementById('startBtn').addEventListener('click', () => {
+  if (!isDrawing) {
+    saveCanvasState(); // Save state before starting to draw
+  }
   isDrawing = true;
   document.getElementById('status').textContent = 'Status: Drawing';
 });
@@ -118,6 +160,7 @@ document.getElementById('stopBtn').addEventListener('click', () => {
 });
 
 document.getElementById('clearBtn').addEventListener('click', () => {
+  saveCanvasState(); // Save state before clearing
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   document.getElementById('status').textContent = 'Status: Canvas Cleared';
 });
@@ -127,20 +170,40 @@ document.getElementById('eraserBtn').addEventListener('click', () => {
   document.getElementById('status').textContent = `Status: ${isErasing ? 'Eraser' : 'Draw'} Mode`;
 });
 
+document.getElementById('undoBtn').addEventListener('click', () => {
+  undo();
+  document.getElementById('status').textContent = 'Status: Undo';
+});
+
+document.getElementById('redoBtn').addEventListener('click', () => {
+  redo();
+  document.getElementById('status').textContent = 'Status: Redo';
+});
+
 // Keyboard shortcuts
 document.addEventListener('keydown', (e) => {
   if (e.key === 's') {
+    if (!isDrawing) {
+      saveCanvasState(); // Save state before starting to draw
+    }
     isDrawing = true;
     document.getElementById('status').textContent = 'Status: Drawing';
   } else if (e.key === 'x') {
     isDrawing = false;
     document.getElementById('status').textContent = 'Status: Stopped';
   } else if (e.key === 'c') {
+    saveCanvasState(); // Save state before clearing
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     document.getElementById('status').textContent = 'Status: Canvas Cleared';
   } else if (e.key === 'e') {
     isErasing = !isErasing;
     document.getElementById('status').textContent = `Status: ${isErasing ? 'Eraser' : 'Draw'} Mode`;
+  } else if (e.key === 'z') {
+    undo();
+    document.getElementById('status').textContent = 'Status: Undo';
+  } else if (e.key === 'y') {
+    redo();
+    document.getElementById('status').textContent = 'Status: Redo';
   } else if (e.key === 'ArrowUp') {
     scalingFactor += 0.5;
     document.getElementById('status').textContent = `Status: Sensitivity ${scalingFactor.toFixed(1)}x`;
