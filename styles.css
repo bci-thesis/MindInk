@@ -57,6 +57,12 @@ button {
   grid-column: span 2;
 }
 
+#eraserBtn {
+  background-color: #cdd8f5;
+  color: rgb(0, 0, 0);
+  grid-column: span 2;
+}
+
 #status {
   grid-column: span 2;
   text-align: center;

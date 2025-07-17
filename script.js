@@ -1,6 +1,7 @@
 let canvas = document.getElementById('canvas');
 let ctx = canvas.getContext('2d');
 let isDrawing = false;
+let isErasing = false;
 let lastX = 0;
 let lastY = 0;
 let eyeX = 0;
@@ -82,6 +83,16 @@ function onResults(results) {
         ctx.beginPath();
         ctx.moveTo(lastX, lastY);
         ctx.lineTo(canvasX, canvasY);
+        
+        // Set composite operation and line width based on mode
+        if (isErasing) {
+          ctx.globalCompositeOperation = 'destination-out';
+          ctx.lineWidth = 30; // Bigger eraser
+        } else {
+          ctx.globalCompositeOperation = 'source-over';
+          ctx.lineWidth = 2; // Normal drawing
+        }
+        
         ctx.stroke();
       }
       
@@ -111,6 +122,11 @@ document.getElementById('clearBtn').addEventListener('click', () => {
   document.getElementById('status').textContent = 'Status: Canvas Cleared';
 });
 
+document.getElementById('eraserBtn').addEventListener('click', () => {
+  isErasing = !isErasing;
+  document.getElementById('status').textContent = `Status: ${isErasing ? 'Eraser' : 'Draw'} Mode`;
+});
+
 // Keyboard shortcuts
 document.addEventListener('keydown', (e) => {
   if (e.key === 's') {
@@ -122,6 +138,9 @@ document.addEventListener('keydown', (e) => {
   } else if (e.key === 'c') {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     document.getElementById('status').textContent = 'Status: Canvas Cleared';
+  } else if (e.key === 'e') {
+    isErasing = !isErasing;
+    document.getElementById('status').textContent = `Status: ${isErasing ? 'Eraser' : 'Draw'} Mode`;
   } else if (e.key === 'ArrowUp') {
     scalingFactor += 0.5;
     document.getElementById('status').textContent = `Status: Sensitivity ${scalingFactor.toFixed(1)}x`;
