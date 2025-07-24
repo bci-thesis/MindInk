@@ -230,6 +230,7 @@ function restoreCanvasState(dataURL) {
   const img = new Image();
   img.onload = function() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+    drawStarOutline(); // Redraw star outline first
     ctx.drawImage(img, 0, 0);
   };
   img.src = dataURL;
@@ -249,10 +250,43 @@ cursor.style.pointerEvents = 'none';
 cursor.style.zIndex = '1000';
 document.body.appendChild(cursor);
 
+// Function to draw star outline
+function drawStarOutline() {
+  const centerX = canvas.width / 2;
+  const centerY = canvas.height / 2;
+  const outerRadius = Math.min(canvas.width, canvas.height) * 0.25;
+  const innerRadius = outerRadius * 0.4;
+  const spikes = 5;
+  
+  ctx.save();
+  ctx.strokeStyle = '#ddd';
+  ctx.lineWidth = 3;
+  ctx.setLineDash([10, 5]); // Dashed line
+  ctx.beginPath();
+  
+  for (let i = 0; i < spikes * 2; i++) {
+    const angle = (i * Math.PI) / spikes;
+    const radius = i % 2 === 0 ? outerRadius : innerRadius;
+    const x = centerX + Math.cos(angle - Math.PI / 2) * radius;
+    const y = centerY + Math.sin(angle - Math.PI / 2) * radius;
+    
+    if (i === 0) {
+      ctx.moveTo(x, y);
+    } else {
+      ctx.lineTo(x, y);
+    }
+  }
+  
+  ctx.closePath();
+  ctx.stroke();
+  ctx.restore();
+}
+
 // Set canvas size
 function resizeCanvas() {
   canvas.width = window.innerWidth - 320;
   canvas.height = window.innerHeight;
+  drawStarOutline(); // Draw star outline after resizing
 }
 resizeCanvas();
 window.addEventListener("resize", resizeCanvas);
@@ -354,6 +388,7 @@ document.getElementById("stopBtn").addEventListener("click", () => {
 document.getElementById('clearBtn').addEventListener('click', () => {
   saveCanvasState(); // Save state before clearing
   ctx.clearRect(0, 0, canvas.width, canvas.height);
+  drawStarOutline(); // Redraw star outline after clearing
   document.getElementById('status').textContent = 'Status: Canvas Cleared';
 });
 
@@ -406,6 +441,7 @@ document.addEventListener('keydown', (e) => {
   } else if (e.key === 'c') {
     saveCanvasState(); // Save state before clearing
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+    drawStarOutline(); // Redraw star outline after clearing
     document.getElementById('status').textContent = 'Status: Canvas Cleared';
   } else if (e.key === 'e') {
     isErasing = !isErasing;
@@ -486,6 +522,7 @@ headset.handleCommand((command, intensity) => {
       break;
     case "lift":
       ctx.clearRect(0, 0, canvas.width, canvas.height);
+      drawStarOutline(); // Redraw star outline after clearing
       document.getElementById("status").textContent = "Status: Canvas Cleared";
       break;
   }
