@@ -316,6 +316,7 @@ function onResults(results) {
         if (isErasing) {
           ctx.globalCompositeOperation = 'destination-out';
           ctx.lineWidth = 30; // Bigger eraser
+          ctx.strokeStyle = 'rgba(0,0,0,1)'; // Set stroke style for erasing
         } else {
           ctx.globalCompositeOperation = 'source-over';
           ctx.lineWidth = 2; // Normal drawing
@@ -408,7 +409,18 @@ document.addEventListener('keydown', (e) => {
     document.getElementById('status').textContent = 'Status: Canvas Cleared';
   } else if (e.key === 'e') {
     isErasing = !isErasing;
-    document.getElementById('status').textContent = `Status: ${isErasing ? 'Eraser' : 'Draw'} Mode`;
+    if (isErasing) {
+      // Turning eraser ON - start erasing immediately
+      if (!isDrawing) {
+        saveCanvasState(); // Save state before starting to erase
+      }
+      isDrawing = true;
+      document.getElementById('status').textContent = 'Status: Erasing';
+    } else {
+      // Turning eraser OFF - go to stop mode
+      isDrawing = false;
+      document.getElementById('status').textContent = 'Status: Stopped';
+    }
   } else if (e.key === 'z') {
     undo();
     document.getElementById('status').textContent = 'Status: Undo';
