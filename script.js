@@ -439,12 +439,12 @@ document.addEventListener('keydown', (e) => {
     document.getElementById('greenColor').classList.add('active');
     currentColor = '#00ff00';
     document.getElementById('status').textContent = 'Status: Color changed to Green';
-  } else if (e.key === '3') {
+  /*} else if (e.key === '3') {
     // Select Blue
     colorButtons.forEach(btn => btn.classList.remove('active'));
     document.getElementById('blueColor').classList.add('active');
     currentColor = '#0000ff';
-    document.getElementById('status').textContent = 'Status: Color changed to Blue';
+    document.getElementById('status').textContent = 'Status: Color changed to Blue';*/
   } else if (e.key === '4') {
     // Select Black
     colorButtons.forEach(btn => btn.classList.remove('active'));

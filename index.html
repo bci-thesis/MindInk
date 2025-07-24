@@ -11,29 +11,45 @@
   </head>
   <body>
     <div id="controls">
-      <div class="button-grid">
-        <button id="startBtn">Start Drawing (s)</button>
-        <button id="stopBtn">Stop Drawing (x)</button>
-        <button id="clearBtn">Clear Canvas (c)</button>
-        <button id="eraserBtn">Toggle Eraser (e)</button>
-        <div id="status">Status: Ready</div>
+      <!-- Drawing Controls -->
+      <div class="menu-section">
+        <h3>Drawing Controls</h3>
+        <div class="button-grid">
+          <button id="startBtn">Start Drawing (s)</button>
+          <button id="stopBtn">Stop Drawing (x)</button>
+          <button id="eraserBtn">Toggle Eraser (e)</button>
+        </div>
       </div>
+
+      <!-- Edit Controls -->
+      <div class="menu-section">
+        <h3>Edit Controls</h3>
+        <div class="button-grid">
+          <button id="undoBtn">Undo ↶ (z)</button>
+          <button id="redoBtn">Redo ↷ (y)</button>
+          <button id="clearBtn">Clear Canvas (c)</button>
+        </div>
+      </div>
+
+      <!-- Color Controls -->
+      <div class="menu-section">
+        <h3>Colors</h3>
+        <div class="color-grid">
+          <button id="redColor" class="color-btn" data-color="#ff0000">Red (1)</button>
+          <button id="greenColor" class="color-btn" data-color="#00ff00">Green (2)</button>
+          <!--<button id="blueColor" class="color-btn" data-color="#0000ff">Blue (3)</button>-->
+          <button id="blackColor" class="color-btn" data-color="#000000">Black (4)</button>
+        </div>
+      </div>
+
+      <!-- Status -->
+      <div id="status">Status: Ready</div>
+
+      <!-- Camera -->
       <div id="camera-container">
         <video id="input-video" playsinline></video>
         <canvas id="output-canvas"></canvas>
       </div>
-    </div>
-
-    <div id="canvas-controls-left">
-      <button id="redColor" class="color-btn" data-color="#ff0000">R</button>
-      <button id="greenColor" class="color-btn" data-color="#00ff00">G</button>
-      <button id="blueColor" class="color-btn" data-color="#0000ff">B</button>
-      <button id="blackColor" class="color-btn" data-color="#000000">Black</button>
-    </div>
-
-    <div id="canvas-controls-right">
-      <button id="undoBtn">Undo ↶ (z)</button>
-      <button id="redoBtn">Redo ↷ (y)</button>
     </div>
 
     <canvas id="canvas"></canvas>
