@@ -341,7 +341,6 @@ document.getElementById('startBtn').addEventListener('click', () => {
   if (!isDrawing) {
     saveCanvasState(); // Save state before starting to draw
   }
-document.getElementById("startBtn").addEventListener("click", () => {
   isDrawing = true;
   document.getElementById("status").textContent = "Status: Drawing";
 });
@@ -353,7 +352,6 @@ document.getElementById("stopBtn").addEventListener("click", () => {
 
 document.getElementById('clearBtn').addEventListener('click', () => {
   saveCanvasState(); // Save state before clearing
-document.getElementById("clearBtn").addEventListener("click", () => {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   document.getElementById('status').textContent = 'Status: Canvas Cleared';
 });
@@ -466,6 +464,7 @@ headset.handleCommand((command, intensity) => {
   }
   switch (command) {
     case "push":
+      
       isDrawing = true;
       document.getElementById("status").textContent = "Status: Drawing";
       break;
