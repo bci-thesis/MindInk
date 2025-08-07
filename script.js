@@ -10,6 +10,7 @@ class Headset {
   /**
    * @param {{clientID: string, clientSecret: string}} user
    * @param {string} socketURL
+   * @param {string[]} streams
    */
   constructor(user, socketURL, streams) {
     this.user = user;
@@ -70,7 +71,7 @@ class Headset {
       session: this.sessionID,
       streams: streams,
     };
-    this.request(SUB_REQUEST_ID, "subscribe", params);
+    this.request(SUB_REQUEST_ID, "subscribe", streams);
   }
 
   createSession() {
@@ -128,10 +129,6 @@ class Headset {
     });
 
     this.request(QUERY_HEADSET_ID, "queryHeadsets", {});
-    // const query_headset = () =>
-    //   this.request(QUERY_HEADSET_ID, "queryHeadsets", {});
-    // query_headset();
-    // setInterval(query_headset, 60_000);
   }
 
   /**
@@ -154,9 +151,6 @@ class Headset {
       const message = JSON.parse(data);
       if (message.warning) {
         console.warn("warning:", message.warning.code, message.warning.message);
-        // if (message.warning.code == WARNING_CODE_HEADSET_DISCOVERY_COMPLETE) {
-        //   this.refreshHeadsetList();
-        // }
       } else if (message.error) {
         console.error(
           "error:",
@@ -167,7 +161,7 @@ class Headset {
       } else {
         console.debug("received message:", message);
         const message_id = message["id"];
-        // handle command
+
         if (message_id == undefined) {
           if (this.commandHandler != undefined) {
             const command = message["com"][0];
@@ -186,345 +180,419 @@ class Headset {
   }
 }
 
-let canvas = document.getElementById("canvas");
-let ctx = canvas.getContext("2d");
-let isDrawing = false;
-let isErasing = false;
-let lastX = 0;
-let lastY = 0;
-let eyeX = 0;
-let eyeY = 0;
-let scalingFactor = 2.0; // Adjust this to control movement sensitivity
-let currentColor = '#000000';
-
-// Undo/Redo functionality
-let undoStack = [];
-let redoStack = [];
-
-function saveCanvasState() {
-  redoStack = []; // Clear redo stack when new action is taken
-  undoStack.push(canvas.toDataURL());
-  // Limit undo stack to 20 states to prevent memory issues
-  if (undoStack.length > 20) {
-    undoStack.shift();
-  }
-}
-
-function undo() {
-  if (undoStack.length > 0) {
-    redoStack.push(canvas.toDataURL());
-    const previousState = undoStack.pop();
-    restoreCanvasState(previousState);
-  }
-}
-
-function redo() {
-  if (redoStack.length > 0) {
-    undoStack.push(canvas.toDataURL());
-    const nextState = redoStack.pop();
-    restoreCanvasState(nextState);
-  }
-}
-
-function restoreCanvasState(dataURL) {
-  const img = new Image();
-  img.onload = function() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    drawStarOutline(); // Redraw star outline first
-    ctx.drawImage(img, 0, 0);
-  };
-  img.src = dataURL;
-}
-
-let lastCursorX = 0;
-let lastCursorY = 0;
-
-// Create cursor element
-const cursor = document.createElement('div');
-cursor.style.width = '10px';
-cursor.style.height = '10px';
-cursor.style.backgroundColor = 'red';
-cursor.style.borderRadius = '50%';
-cursor.style.position = 'fixed';
-cursor.style.pointerEvents = 'none';
-cursor.style.zIndex = '1000';
-document.body.appendChild(cursor);
-
-// Function to draw star outline
-function drawStarOutline() {
-  const centerX = canvas.width / 2;
-  const centerY = canvas.height / 2;
-  const outerRadius = Math.min(canvas.width, canvas.height) * 0.25;
-  const innerRadius = outerRadius * 0.4;
-  const spikes = 5;
-  
-  ctx.save();
-  ctx.strokeStyle = '#ddd';
-  ctx.lineWidth = 3;
-  ctx.setLineDash([10, 5]); // Dashed line
-  ctx.beginPath();
-  
-  for (let i = 0; i < spikes * 2; i++) {
-    const angle = (i * Math.PI) / spikes;
-    const radius = i % 2 === 0 ? outerRadius : innerRadius;
-    const x = centerX + Math.cos(angle - Math.PI / 2) * radius;
-    const y = centerY + Math.sin(angle - Math.PI / 2) * radius;
+class CanvasDrawing {
+  /**
+   * @param {string} canvasId
+   */
+  constructor(canvasId) {
+    this.canvas = document.getElementById(canvasId);
+    this.ctx = this.canvas.getContext("2d");
+    this.isDrawing = false;
+    this.isErasing = false;
+    this.lastX = 0;
+    this.lastY = 0;
+    this.currentColor = "#000000";
+    this.undoStack = [];
+    this.redoStack = [];
+    this.cursor = this.createCursor();
     
-    if (i === 0) {
-      ctx.moveTo(x, y);
-    } else {
-      ctx.lineTo(x, y);
+    this.resizeCanvas();
+    this.drawStarOutline();
+    this.setupEventListeners();
+  }
+
+  /**
+   * @returns {HTMLDivElement}
+   */
+  createCursor() {
+    const cursor = document.createElement("div");
+    cursor.style.width = "10px";
+    cursor.style.height = "10px";
+    cursor.style.backgroundColor = "red";
+    cursor.style.borderRadius = "50%";
+    cursor.style.position = "fixed";
+    cursor.style.pointerEvents = "none";
+    cursor.style.zIndex = "1000";
+    document.body.appendChild(cursor);
+    return cursor;
+  }
+
+  resizeCanvas() {
+    this.canvas.width = window.innerWidth - 320;
+    this.canvas.height = window.innerHeight;
+    this.drawStarOutline();
+  }
+
+  drawStarOutline() {
+    const centerX = this.canvas.width / 2;
+    const centerY = this.canvas.height / 2;
+    const outerRadius = Math.min(this.canvas.width, this.canvas.height) * 0.25;
+    const innerRadius = outerRadius * 0.4;
+    const spikes = 5;
+    
+    this.ctx.save();
+    this.ctx.strokeStyle = "#ddd";
+    this.ctx.lineWidth = 3;
+    this.ctx.setLineDash([10, 5]);
+    this.ctx.beginPath();
+    
+    for (let i = 0; i < spikes * 2; i++) {
+      const angle = (i * Math.PI) / spikes;
+      const radius = i % 2 === 0 ? outerRadius : innerRadius;
+      const x = centerX + Math.cos(angle - Math.PI / 2) * radius;
+      const y = centerY + Math.sin(angle - Math.PI / 2) * radius;
+      
+      if (i === 0) {
+        this.ctx.moveTo(x, y);
+      } else {
+        this.ctx.lineTo(x, y);
+      }
+    }
+    
+    this.ctx.closePath();
+    this.ctx.stroke();
+    this.ctx.restore();
+  }
+
+  saveCanvasState() {
+    this.redoStack = [];
+    this.undoStack.push(this.canvas.toDataURL());
+    if (this.undoStack.length > 20) {
+      this.undoStack.shift();
     }
   }
-  
-  ctx.closePath();
-  ctx.stroke();
-  ctx.restore();
-}
 
-// Set canvas size
-function resizeCanvas() {
-  canvas.width = window.innerWidth - 320;
-  canvas.height = window.innerHeight;
-  drawStarOutline(); // Draw star outline after resizing
-}
-resizeCanvas();
-window.addEventListener("resize", resizeCanvas);
+  undo() {
+    if (this.undoStack.length > 0) {
+      this.redoStack.push(this.canvas.toDataURL());
+      const previousState = this.undoStack.pop();
+      this.restoreCanvasState(previousState);
+    }
+  }
 
-// MediaPipe Face Mesh setup
-const video = document.getElementById("input-video");
-const outputCanvas = document.getElementById("output-canvas");
-const outputCtx = outputCanvas.getContext("2d");
+  redo() {
+    if (this.redoStack.length > 0) {
+      this.undoStack.push(this.canvas.toDataURL());
+      const nextState = this.redoStack.pop();
+      this.restoreCanvasState(nextState);
+    }
+  }
 
-const faceMesh = new FaceMesh({
-  locateFile: (file) => {
-    return `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`;
-  },
-});
+  /**
+   * @param {string} dataURL
+   */
+  restoreCanvasState(dataURL) {
+    const img = new Image();
+    img.onload = () => {
+      this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+      this.drawStarOutline();
+      this.ctx.drawImage(img, 0, 0);
+    };
+    img.src = dataURL;
+  }
 
-faceMesh.setOptions({
-  maxNumFaces: 1,
-  refineLandmarks: true,
-  minDetectionConfidence: 0.5,
-  minTrackingConfidence: 0.5,
-});
-
-faceMesh.onResults(onResults);
-
-// Camera setup
-const camera = new Camera(video, {
-  onFrame: async () => {
-    await faceMesh.send({ image: video });
-  },
-  width: 320,
-  height: 240,
-});
-camera.start();
-
-function onResults(results) {
-  if (results.multiFaceLandmarks) {
-    for (const landmarks of results.multiFaceLandmarks) {
-      // Get eye landmarks (indices 33 and 133 for left and right eye centers)
-      const leftEye = landmarks[33];
-      const rightEye = landmarks[133];
-
-      // Calculate average eye position
-      eyeX = (leftEye.x + rightEye.x) / 2;
-      eyeY = (leftEye.y + rightEye.y) / 2;
-
-      // Convert eye position to canvas coordinates and mirror the X coordinate
-      // Apply scaling factor to amplify movement from the center
-      const centerX = canvas.width / 2;
-      const centerY = canvas.height / 2;
-      const offsetX = (eyeX - 0.5) * scalingFactor;
-      const offsetY = (eyeY - 0.5) * scalingFactor;
-      const canvasX = centerX - (offsetX * canvas.width);
-      const canvasY = centerY + (offsetY * canvas.height);
+  /**
+   * @param {number} x
+   * @param {number} y
+   */
+  draw(x, y) {
+    if (this.isDrawing) {
+      this.ctx.beginPath();
+      this.ctx.moveTo(this.lastX, this.lastY);
+      this.ctx.lineTo(x, y);
       
-      if (isDrawing) {
-        ctx.beginPath();
-        ctx.moveTo(lastX, lastY);
-        ctx.lineTo(canvasX, canvasY);
-        
-        // Set composite operation and line width based on mode
-        if (isErasing) {
-          ctx.globalCompositeOperation = 'destination-out';
-          ctx.lineWidth = 30; // Bigger eraser
-          ctx.strokeStyle = 'rgba(0,0,0,1)'; // Set stroke style for erasing
-        } else {
-          ctx.globalCompositeOperation = 'source-over';
-          ctx.lineWidth = 2; // Normal drawing
-          ctx.strokeStyle = currentColor; // Use selected color
-        }
-        
-        ctx.stroke();
+      if (this.isErasing) {
+        this.ctx.globalCompositeOperation = "destination-out";
+        this.ctx.lineWidth = 30;
+        this.ctx.strokeStyle = "rgba(0,0,0,1)";
+      } else {
+        this.ctx.globalCompositeOperation = "source-over";
+        this.ctx.lineWidth = 2;
+        this.ctx.strokeStyle = this.currentColor;
       }
       
-      // Update cursor position
-      cursor.style.left = (canvas.offsetLeft + canvasX - 5) + 'px';
-      cursor.style.top = (canvas.offsetTop + canvasY - 5) + 'px';
-      
+      this.ctx.stroke();
+    }
+    
+    this.updateCursor(x, y);
+    this.lastX = x;
+    this.lastY = y;
+  }
 
-      lastX = canvasX;
-      lastY = canvasY;
+  /**
+   * @param {number} x
+   * @param {number} y
+   */
+  updateCursor(x, y) {
+    this.cursor.style.left = (this.canvas.offsetLeft + x - 5) + "px";
+    this.cursor.style.top = (this.canvas.offsetTop + y - 5) + "px";
+  }
+
+  startDrawing() {
+    if (!this.isDrawing) {
+      this.saveCanvasState();
+    }
+    this.isDrawing = true;
+    this.updateStatus("Drawing");
+  }
+
+  stopDrawing() {
+    this.isDrawing = false;
+    this.updateStatus("Stopped");
+  }
+
+  toggleEraser() {
+    this.isErasing = !this.isErasing;
+    if (this.isErasing) {
+      if (!this.isDrawing) {
+        this.saveCanvasState();
+      }
+      this.isDrawing = true;
+      this.updateStatus("Erasing");
+    } else {
+      this.isDrawing = false;
+      this.updateStatus("Stopped");
+    }
+  }
+
+  clearCanvas() {
+    this.saveCanvasState();
+    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    this.drawStarOutline();
+    this.updateStatus("Canvas Cleared");
+  }
+
+  /**
+   * @param {string} color
+   */
+  setColor(color) {
+    this.currentColor = color;
+    this.updateStatus(`Color changed to ${color}`);
+  }
+
+  /**
+   * @param {string} message
+   */
+  updateStatus(message) {
+    document.getElementById("status").textContent = `Status: ${message}`;
+  }
+
+  setupEventListeners() {
+    window.addEventListener("resize", () => this.resizeCanvas());
+  }
+}
+
+class FaceTracker {
+  /**
+   * @param {string} videoId
+   * @param {string} outputCanvasId
+   * @param {CanvasDrawing} drawingCanvas
+   */
+  constructor(videoId, outputCanvasId, drawingCanvas) {
+    this.video = document.getElementById(videoId);
+    this.outputCanvas = document.getElementById(outputCanvasId);
+    this.outputCtx = this.outputCanvas.getContext("2d");
+    this.drawingCanvas = drawingCanvas;
+    this.scalingFactor = 2.0;
+    this.eyeX = 0;
+    this.eyeY = 0;
+    
+    this.setupFaceMesh();
+    this.setupCamera();
+  }
+
+  setupFaceMesh() {
+    this.faceMesh = new FaceMesh({
+      locateFile: (file) => {
+        return `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`;
+      },
+    });
+
+    this.faceMesh.setOptions({
+      maxNumFaces: 1,
+      refineLandmarks: true,
+      minDetectionConfidence: 0.5,
+      minTrackingConfidence: 0.5,
+    });
+
+    this.faceMesh.onResults((results) => this.onResults(results));
+  }
+
+  setupCamera() {
+    this.camera = new Camera(this.video, {
+      onFrame: async () => {
+        await this.faceMesh.send({ image: this.video });
+      },
+      width: 320,
+      height: 240,
+    });
+    this.camera.start();
+  }
+
+  /**
+   * @param {any} results
+   */
+  onResults(results) {
+    if (results.multiFaceLandmarks) {
+      for (const landmarks of results.multiFaceLandmarks) {
+        const leftEye = landmarks[33];
+        const rightEye = landmarks[133];
+
+        this.eyeX = (leftEye.x + rightEye.x) / 2;
+        this.eyeY = (leftEye.y + rightEye.y) / 2;
+
+        const centerX = this.drawingCanvas.canvas.width / 2;
+        const centerY = this.drawingCanvas.canvas.height / 2;
+        const offsetX = (this.eyeX - 0.5) * this.scalingFactor;
+        const offsetY = (this.eyeY - 0.5) * this.scalingFactor;
+        const canvasX = centerX - (offsetX * this.drawingCanvas.canvas.width);
+        const canvasY = centerY + (offsetY * this.drawingCanvas.canvas.height);
+        
+        this.drawingCanvas.draw(canvasX, canvasY);
+      }
+    }
+  }
+
+  /**
+   * @param {number} factor
+   */
+  setScalingFactor(factor) {
+    this.scalingFactor = factor;
+    this.drawingCanvas.updateStatus(`Sensitivity ${this.scalingFactor.toFixed(1)}x`);
+  }
+
+  increaseSensitivity() {
+    this.setScalingFactor(this.scalingFactor + 0.5);
+  }
+
+  decreaseSensitivity() {
+    if (this.scalingFactor > 0.5) {
+      this.setScalingFactor(this.scalingFactor - 0.5);
     }
   }
 }
 
-// Drawing controls
-document.getElementById('startBtn').addEventListener('click', () => {
-  if (!isDrawing) {
-    saveCanvasState(); // Save state before starting to draw
+class KeybindManager {
+  /**
+   * @param {CanvasDrawing} drawingCanvas
+   * @param {FaceTracker} faceTracker
+   */
+  constructor(drawingCanvas, faceTracker) {
+    this.drawingCanvas = drawingCanvas;
+    this.faceTracker = faceTracker;
+    this.keybinds = new Map();
+    this.setupKeybinds();
+    this.setupEventListeners();
   }
-  isDrawing = true;
-  document.getElementById("status").textContent = "Status: Drawing";
-});
 
-document.getElementById("stopBtn").addEventListener("click", () => {
-  isDrawing = false;
-  document.getElementById("status").textContent = "Status: Stopped";
-});
-
-document.getElementById('clearBtn').addEventListener('click', () => {
-  saveCanvasState(); // Save state before clearing
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  drawStarOutline(); // Redraw star outline after clearing
-  document.getElementById('status').textContent = 'Status: Canvas Cleared';
-});
-
-document.getElementById('eraserBtn').addEventListener('click', () => {
-  isErasing = !isErasing;
-  document.getElementById('status').textContent = `Status: ${isErasing ? 'Eraser' : 'Draw'} Mode`;
-});
-
-// Color button functionality
-const colorButtons = document.querySelectorAll('.color-btn');
-
-// Set initial active color (black)
-document.getElementById('blackColor').classList.add('active');
-
-colorButtons.forEach(button => {
-  button.addEventListener('click', () => {
-    // Remove active class from all buttons
-    colorButtons.forEach(btn => btn.classList.remove('active'));
+  setupKeybinds() {
+    this.keybinds.set("s", () => this.drawingCanvas.startDrawing());
+    this.keybinds.set("x", () => this.drawingCanvas.stopDrawing());
+    this.keybinds.set("e", () => this.drawingCanvas.toggleEraser());
+    this.keybinds.set("c", () => this.drawingCanvas.clearCanvas());
     
-    // Add active class to clicked button
-    button.classList.add('active');
+    this.keybinds.set("z", () => this.drawingCanvas.undo());
+    this.keybinds.set("y", () => this.drawingCanvas.redo());
     
-    // Set the current color
-    currentColor = button.dataset.color;
-    document.getElementById('status').textContent = `Status: Color changed to ${button.textContent}`;
-  });
-});
+    this.keybinds.set("1", () => this.setColor("#ff0000", "Red"));
+    this.keybinds.set("2", () => this.setColor("#00ff00", "Green"));
+    this.keybinds.set("4", () => this.setColor("#000000", "Black"));
+    
+    this.keybinds.set("ArrowUp", () => this.faceTracker.increaseSensitivity());
+    this.keybinds.set("ArrowDown", () => this.faceTracker.decreaseSensitivity());
+  }
 
-document.getElementById('undoBtn').addEventListener('click', () => {
-  undo();
-  document.getElementById('status').textContent = 'Status: Undo';
-});
+  /**
+   * @param {string} color
+   * @param {string} name
+   */
+  setColor(color, name) {
+    this.drawingCanvas.setColor(color);
+    this.updateColorButton(color);
+  }
 
-document.getElementById('redoBtn').addEventListener('click', () => {
-  redo();
-  document.getElementById('status').textContent = 'Status: Redo';
-});
-
-// Keyboard shortcuts
-document.addEventListener('keydown', (e) => {
-  if (e.key === 's') {
-    if (!isDrawing) {
-      saveCanvasState(); // Save state before starting to draw
+  /**
+   * @param {string} color
+   */
+  updateColorButton(color) {
+    const colorButtons = document.querySelectorAll(".color-btn");
+    colorButtons.forEach(btn => btn.classList.remove("active"));
+    
+    const targetButton = document.querySelector(`[data-color="${color}"]`);
+    if (targetButton) {
+      targetButton.classList.add("active");
     }
-    isDrawing = true;
-    document.getElementById("status").textContent = "Status: Drawing";
-  } else if (e.key === "x") {
-    isDrawing = false;
-    document.getElementById('status').textContent = 'Status: Stopped';
-  } else if (e.key === 'c') {
-    saveCanvasState(); // Save state before clearing
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    drawStarOutline(); // Redraw star outline after clearing
-    document.getElementById('status').textContent = 'Status: Canvas Cleared';
-  } else if (e.key === 'e') {
-    isErasing = !isErasing;
-    if (isErasing) {
-      // Turning eraser ON - start erasing immediately
-      if (!isDrawing) {
-        saveCanvasState(); // Save state before starting to erase
+  }
+
+  setupEventListeners() {
+    document.addEventListener("keydown", (e) => {
+      const handler = this.keybinds.get(e.key);
+      const modifierPressed = e.shiftKey || e.ctrlKey || e.altKey || e.metaKey;
+      if (handler && !modifierPressed) {
+        e.preventDefault();
+        handler();
       }
-      isDrawing = true;
-      document.getElementById('status').textContent = 'Status: Erasing';
-    } else {
-      // Turning eraser OFF - go to stop mode
-      isDrawing = false;
-      document.getElementById('status').textContent = 'Status: Stopped';
-    }
-  } else if (e.key === 'z') {
-    undo();
-    document.getElementById('status').textContent = 'Status: Undo';
-  } else if (e.key === 'y') {
-    redo();
-    document.getElementById('status').textContent = 'Status: Redo';
-  } else if (e.key === '1') {
-    // Select Red
-    colorButtons.forEach(btn => btn.classList.remove('active'));
-    document.getElementById('redColor').classList.add('active');
-    currentColor = '#ff0000';
-    document.getElementById('status').textContent = 'Status: Color changed to Red';
-  } else if (e.key === '2') {
-    // Select Green
-    colorButtons.forEach(btn => btn.classList.remove('active'));
-    document.getElementById('greenColor').classList.add('active');
-    currentColor = '#00ff00';
-    document.getElementById('status').textContent = 'Status: Color changed to Green';
-  /*} else if (e.key === '3') {
-    // Select Blue
-    colorButtons.forEach(btn => btn.classList.remove('active'));
-    document.getElementById('blueColor').classList.add('active');
-    currentColor = '#0000ff';
-    document.getElementById('status').textContent = 'Status: Color changed to Blue';*/
-  } else if (e.key === '4') {
-    // Select Black
-    colorButtons.forEach(btn => btn.classList.remove('active'));
-    document.getElementById('blackColor').classList.add('active');
-    currentColor = '#000000';
-    document.getElementById('status').textContent = 'Status: Color changed to Black';
-  } else if (e.key === 'ArrowUp') {
-    scalingFactor += 0.5;
-    document.getElementById('status').textContent = `Status: Sensitivity ${scalingFactor.toFixed(1)}x`;
-  } else if (e.key === 'ArrowDown') {
-    if (scalingFactor > 0.5) {
-      scalingFactor -= 0.5;
-      document.getElementById('status').textContent = `Status: Sensitivity ${scalingFactor.toFixed(1)}x`;
-    }
-  }
-});
+    });
 
-const user = {
-  clientID: "",
-  clientSecret: "",
-};
-const socketURL = "wss://localhost:6868";
-const streams = ["com"];
+    document.getElementById("startBtn").addEventListener("click", () => this.drawingCanvas.startDrawing());
+    document.getElementById("stopBtn").addEventListener("click", () => this.drawingCanvas.stopDrawing());
+    document.getElementById("eraserBtn").addEventListener("click", () => this.drawingCanvas.toggleEraser());
+    document.getElementById("clearBtn").addEventListener("click", () => this.drawingCanvas.clearCanvas());
+    document.getElementById("undoBtn").addEventListener("click", () => this.drawingCanvas.undo());
+    document.getElementById("redoBtn").addEventListener("click", () => this.drawingCanvas.redo());
 
-const headset = new Headset(user, socketURL, streams);
-headset.handleCommand((command, intensity) => {
-  if (intensity <= 0.5) {
-    return;
+    const colorButtons = document.querySelectorAll(".color-btn");
+    document.getElementById("blackColor").classList.add("active");
+    
+    colorButtons.forEach(button => {
+      button.addEventListener("click", () => {
+        const color = button.dataset.color;
+        this.drawingCanvas.setColor(color);
+        this.updateColorButton(color);
+      });
+    });
   }
-  switch (command) {
-    case "push":
+}
+
+class HeadsetController {
+  /**
+   * @param {CanvasDrawing} drawingCanvas
+   */
+  constructor(drawingCanvas) {
+    this.drawingCanvas = drawingCanvas;
+    this.user = {
+      clientID: "",
+      clientSecret: "",
+    };
+    this.socketURL = "wss://localhost:6868";
+    this.streams = ["com"];
+    this.headset = new Headset(this.user, this.socketURL, this.streams);
+    this.setupCommandHandler();
+    this.headset.connect();
+  }
+
+  setupCommandHandler() {
+    this.headset.handleCommand((command, intensity) => {
+      if (intensity <= 0.5) {
+        return;
+      }
       
-      isDrawing = true;
-      document.getElementById("status").textContent = "Status: Drawing";
-      break;
-    case "pull":
-      isDrawing = false;
-      document.getElementById("status").textContent = "Status: Stopped";
-      break;
-    case "lift":
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      drawStarOutline(); // Redraw star outline after clearing
-      document.getElementById("status").textContent = "Status: Canvas Cleared";
-      break;
+      switch (command) {
+        case "push":
+          this.drawingCanvas.startDrawing();
+          break;
+        case "pull":
+          this.drawingCanvas.stopDrawing();
+          break;
+        case "lift":
+          this.drawingCanvas.clearCanvas();
+          break;
+      }
+    });
   }
-});
-headset.connect();
+}
+
+const drawingCanvas = new CanvasDrawing("canvas");
+const faceTracker = new FaceTracker("input-video", "output-canvas", drawingCanvas);
+const keybindManager = new KeybindManager(drawingCanvas, faceTracker);
+const headsetController = new HeadsetController(drawingCanvas);
