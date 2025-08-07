@@ -436,8 +436,13 @@ class CanvasDrawing {
    * @param {number} y
    */
   updateCursor(x, y) {
-    this.cursor.style.left = this.canvas.offsetLeft + x - 5 + "px";
-    this.cursor.style.top = this.canvas.offsetTop + y - 5 + "px";
+    const rect = this.canvas.getBoundingClientRect();
+    const scaleX = rect.width / this.canvas.width;
+    const scaleY = rect.height / this.canvas.height;
+    const pageX = rect.left + x * scaleX;
+    const pageY = rect.top + y * scaleY;
+    this.cursor.style.left = pageX - this.cursor.offsetWidth / 2 + "px";
+    this.cursor.style.top = pageY - this.cursor.offsetHeight / 2 + "px";
   }
 
   startDrawing() {
@@ -1073,7 +1078,7 @@ window.onload = (_) => {
     "output-canvas",
     drawingCanvas,
   );
-  const keybindManager = new KeybindManager(drawingCanvas, faceTracker);
+  new KeybindManager(drawingCanvas, faceTracker);
   const menuNavigator = new MenuNavigator(drawingCanvas);
   window.menuNavigator = menuNavigator;
   const headsetController = new HeadsetController(
@@ -1081,7 +1086,7 @@ window.onload = (_) => {
     credentialManager,
     menuNavigator,
   );
-  const loginManager = new LoginManager(credentialManager, () => {
+  new LoginManager(credentialManager, () => {
     headsetController.initialize();
   });
   const templateManager = new TemplateManager(
@@ -1093,11 +1098,5 @@ window.onload = (_) => {
     this.canvas.width = window.innerWidth - 320;
     this.canvas.height = window.innerHeight;
     templateManager.onResize();
-  };
-  drawingCanvas.clearCanvas = () => {
-    this.saveCanvasState();
-    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-    templateManager.redraw();
-    this.updateStatus("Canvas Cleared");
   };
 };
