@@ -8,7 +8,7 @@ const WARNING_CODE_HEADSET_DISCOVERY_COMPLETE = 142;
 
 class CredentialManager {
   constructor() {
-    this.storageKey = 'cortex_credentials';
+    this.storageKey = "cortex_credentials";
   }
 
   /**
@@ -20,7 +20,7 @@ class CredentialManager {
       try {
         return JSON.parse(stored);
       } catch (e) {
-        console.error('Failed to parse stored credentials:', e);
+        console.error("Failed to parse stored credentials:", e);
         return null;
       }
     }
@@ -53,21 +53,21 @@ class LoginManager {
   constructor(credentialManager, onLoginSuccess) {
     this.credentialManager = credentialManager;
     this.onLoginSuccess = onLoginSuccess;
-    this.loginOverlay = document.getElementById('login-overlay');
-    this.loginForm = document.getElementById('login-form');
-    this.clearCredentialsBtn = document.getElementById('clear-credentials');
-    
+    this.loginOverlay = document.getElementById("login-overlay");
+    this.loginForm = document.getElementById("login-form");
+    this.clearCredentialsBtn = document.getElementById("clear-credentials");
+
     this.setupEventListeners();
     this.checkCredentials();
   }
 
   setupEventListeners() {
-    this.loginForm.addEventListener('submit', (e) => {
+    this.loginForm.addEventListener("submit", (e) => {
       e.preventDefault();
       this.handleLogin();
     });
 
-    this.clearCredentialsBtn.addEventListener('click', () => {
+    this.clearCredentialsBtn.addEventListener("click", () => {
       this.credentialManager.clearCredentials();
       this.showLoginForm();
     });
@@ -83,11 +83,11 @@ class LoginManager {
   }
 
   handleLogin() {
-    const clientID = document.getElementById('client-id').value.trim();
-    const clientSecret = document.getElementById('client-secret').value.trim();
+    const clientID = document.getElementById("client-id").value.trim();
+    const clientSecret = document.getElementById("client-secret").value.trim();
 
     if (!clientID || !clientSecret) {
-      alert('Please enter both Client ID and Client Secret');
+      alert("Please enter both Client ID and Client Secret");
       return;
     }
 
@@ -97,11 +97,11 @@ class LoginManager {
   }
 
   showLoginForm() {
-    this.loginOverlay.classList.remove('hidden');
+    this.loginOverlay.classList.remove("hidden");
   }
 
   hideLoginForm() {
-    this.loginOverlay.classList.add('hidden');
+    this.loginOverlay.classList.add("hidden");
   }
 
   reinitialize() {
@@ -296,7 +296,7 @@ class CanvasDrawing {
     this.undoStack = [];
     this.redoStack = [];
     this.cursor = this.createCursor();
-    
+
     this.resizeCanvas();
     this.drawStarOutline();
     this.setupEventListeners();
@@ -330,26 +330,26 @@ class CanvasDrawing {
     const outerRadius = Math.min(this.canvas.width, this.canvas.height) * 0.25;
     const innerRadius = outerRadius * 0.4;
     const spikes = 5;
-    
+
     this.ctx.save();
     this.ctx.strokeStyle = "#ddd";
     this.ctx.lineWidth = 3;
     this.ctx.setLineDash([10, 5]);
     this.ctx.beginPath();
-    
+
     for (let i = 0; i < spikes * 2; i++) {
       const angle = (i * Math.PI) / spikes;
       const radius = i % 2 === 0 ? outerRadius : innerRadius;
       const x = centerX + Math.cos(angle - Math.PI / 2) * radius;
       const y = centerY + Math.sin(angle - Math.PI / 2) * radius;
-      
+
       if (i === 0) {
         this.ctx.moveTo(x, y);
       } else {
         this.ctx.lineTo(x, y);
       }
     }
-    
+
     this.ctx.closePath();
     this.ctx.stroke();
     this.ctx.restore();
@@ -401,7 +401,7 @@ class CanvasDrawing {
       this.ctx.beginPath();
       this.ctx.moveTo(this.lastX, this.lastY);
       this.ctx.lineTo(x, y);
-      
+
       if (this.isErasing) {
         this.ctx.globalCompositeOperation = "destination-out";
         this.ctx.lineWidth = 30;
@@ -411,10 +411,10 @@ class CanvasDrawing {
         this.ctx.lineWidth = 2;
         this.ctx.strokeStyle = this.currentColor;
       }
-      
+
       this.ctx.stroke();
     }
-    
+
     this.updateCursor(x, y);
     this.lastX = x;
     this.lastY = y;
@@ -425,8 +425,8 @@ class CanvasDrawing {
    * @param {number} y
    */
   updateCursor(x, y) {
-    this.cursor.style.left = (this.canvas.offsetLeft + x - 5) + "px";
-    this.cursor.style.top = (this.canvas.offsetTop + y - 5) + "px";
+    this.cursor.style.left = this.canvas.offsetLeft + x - 5 + "px";
+    this.cursor.style.top = this.canvas.offsetTop + y - 5 + "px";
   }
 
   startDrawing() {
@@ -497,7 +497,7 @@ class FaceTracker {
     this.scalingFactor = 2.0;
     this.eyeX = 0;
     this.eyeY = 0;
-    
+
     this.setupFaceMesh();
     this.setupCamera();
   }
@@ -546,9 +546,9 @@ class FaceTracker {
         const centerY = this.drawingCanvas.canvas.height / 2;
         const offsetX = (this.eyeX - 0.5) * this.scalingFactor;
         const offsetY = (this.eyeY - 0.5) * this.scalingFactor;
-        const canvasX = centerX - (offsetX * this.drawingCanvas.canvas.width);
-        const canvasY = centerY + (offsetY * this.drawingCanvas.canvas.height);
-        
+        const canvasX = centerX - offsetX * this.drawingCanvas.canvas.width;
+        const canvasY = centerY + offsetY * this.drawingCanvas.canvas.height;
+
         this.drawingCanvas.draw(canvasX, canvasY);
       }
     }
@@ -559,7 +559,9 @@ class FaceTracker {
    */
   setScalingFactor(factor) {
     this.scalingFactor = factor;
-    this.drawingCanvas.updateStatus(`Sensitivity ${this.scalingFactor.toFixed(1)}x`);
+    this.drawingCanvas.updateStatus(
+      `Sensitivity ${this.scalingFactor.toFixed(1)}x`,
+    );
   }
 
   increaseSensitivity() {
@@ -591,16 +593,18 @@ class KeybindManager {
     this.keybinds.set("x", () => this.drawingCanvas.stopDrawing());
     this.keybinds.set("e", () => this.drawingCanvas.toggleEraser());
     this.keybinds.set("c", () => this.drawingCanvas.clearCanvas());
-    
+
     this.keybinds.set("z", () => this.drawingCanvas.undo());
     this.keybinds.set("y", () => this.drawingCanvas.redo());
-    
+
     this.keybinds.set("1", () => this.setColor("#ff0000", "Red"));
     this.keybinds.set("2", () => this.setColor("#00ff00", "Green"));
     this.keybinds.set("4", () => this.setColor("#000000", "Black"));
-    
+
     this.keybinds.set("ArrowUp", () => this.faceTracker.increaseSensitivity());
-    this.keybinds.set("ArrowDown", () => this.faceTracker.decreaseSensitivity());
+    this.keybinds.set("ArrowDown", () =>
+      this.faceTracker.decreaseSensitivity(),
+    );
   }
 
   /**
@@ -617,8 +621,8 @@ class KeybindManager {
    */
   updateColorButton(color) {
     const colorButtons = document.querySelectorAll(".color-btn");
-    colorButtons.forEach(btn => btn.classList.remove("active"));
-    
+    colorButtons.forEach((btn) => btn.classList.remove("active"));
+
     const targetButton = document.querySelector(`[data-color="${color}"]`);
     if (targetButton) {
       targetButton.classList.add("active");
@@ -635,17 +639,29 @@ class KeybindManager {
       }
     });
 
-    document.getElementById("startBtn").addEventListener("click", () => this.drawingCanvas.startDrawing());
-    document.getElementById("stopBtn").addEventListener("click", () => this.drawingCanvas.stopDrawing());
-    document.getElementById("eraserBtn").addEventListener("click", () => this.drawingCanvas.toggleEraser());
-    document.getElementById("clearBtn").addEventListener("click", () => this.drawingCanvas.clearCanvas());
-    document.getElementById("undoBtn").addEventListener("click", () => this.drawingCanvas.undo());
-    document.getElementById("redoBtn").addEventListener("click", () => this.drawingCanvas.redo());
+    document
+      .getElementById("startBtn")
+      .addEventListener("click", () => this.drawingCanvas.startDrawing());
+    document
+      .getElementById("stopBtn")
+      .addEventListener("click", () => this.drawingCanvas.stopDrawing());
+    document
+      .getElementById("eraserBtn")
+      .addEventListener("click", () => this.drawingCanvas.toggleEraser());
+    document
+      .getElementById("clearBtn")
+      .addEventListener("click", () => this.drawingCanvas.clearCanvas());
+    document
+      .getElementById("undoBtn")
+      .addEventListener("click", () => this.drawingCanvas.undo());
+    document
+      .getElementById("redoBtn")
+      .addEventListener("click", () => this.drawingCanvas.redo());
 
     const colorButtons = document.querySelectorAll(".color-btn");
     document.getElementById("blackColor").classList.add("active");
-    
-    colorButtons.forEach(button => {
+
+    colorButtons.forEach((button) => {
       button.addEventListener("click", () => {
         const color = button.dataset.color;
         this.drawingCanvas.setColor(color);
@@ -674,7 +690,7 @@ class HeadsetController {
   initialize() {
     const credentials = this.credentialManager.getCredentials();
     if (!credentials) {
-      console.error('No credentials available');
+      console.error("No credentials available");
       return;
     }
 
@@ -686,15 +702,15 @@ class HeadsetController {
 
   setupCommandHandler() {
     if (!this.headset) {
-      console.error('Headset not initialized');
+      console.error("Headset not initialized");
       return;
     }
-    
+
     this.headset.handleCommand((command, intensity) => {
       if (intensity <= 0.5) {
         return;
       }
-      
+
       const currentTime = Date.now();
       if (currentTime - this.lastActionTime < this.actionDelay) {
         console.log(`too soon since last action`);
@@ -705,17 +721,17 @@ class HeadsetController {
         case "push":
           this.drawingCanvas.startDrawing();
           this.lastActionTime = currentTime;
-          console.log('Headset: Started drawing');
+          console.log("Headset: Started drawing");
           break;
         case "pull":
           this.drawingCanvas.stopDrawing();
           this.lastActionTime = currentTime;
-          console.log('Headset: Stopped drawing');
+          console.log("Headset: Stopped drawing");
           break;
         case "lift":
           this.drawingCanvas.clearCanvas();
           this.lastActionTime = currentTime;
-          console.log('Headset: Cleared canvas');
+          console.log("Headset: Cleared canvas");
           break;
       }
     });
@@ -724,9 +740,16 @@ class HeadsetController {
 
 const credentialManager = new CredentialManager();
 const drawingCanvas = new CanvasDrawing("canvas");
-const faceTracker = new FaceTracker("input-video", "output-canvas", drawingCanvas);
+const faceTracker = new FaceTracker(
+  "input-video",
+  "output-canvas",
+  drawingCanvas,
+);
 const keybindManager = new KeybindManager(drawingCanvas, faceTracker);
-const headsetController = new HeadsetController(drawingCanvas, credentialManager);
+const headsetController = new HeadsetController(
+  drawingCanvas,
+  credentialManager,
+);
 const loginManager = new LoginManager(credentialManager, () => {
   headsetController.initialize();
 });
