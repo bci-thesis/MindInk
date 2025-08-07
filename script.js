@@ -6,6 +6,45 @@ const CREATE_SESSION_ID = 5;
 const SUB_REQUEST_ID = 6;
 const WARNING_CODE_HEADSET_DISCOVERY_COMPLETE = 142;
 
+class KalmanFilter {
+  /**
+   * @param {number} processNoise - Process noise covariance
+   * @param {number} measurementNoise - Measurement noise covariance
+   * @param {number} initialState - Initial state estimate
+   */
+  constructor(processNoise = 0.01, measurementNoise = 0.1, initialState = 0) {
+    this.processNoise = processNoise;
+    this.measurementNoise = measurementNoise;
+    this.state = initialState;
+    this.uncertainty = 1.0;
+  }
+
+  /**
+   * @param {number} measurement - New measurement
+   * @returns {number} - Filtered/smoothed value
+   */
+  update(measurement) {
+    // Prediction step
+    const predictedUncertainty = this.uncertainty + this.processNoise;
+
+    // Update step
+    const kalmanGain =
+      predictedUncertainty / (predictedUncertainty + this.measurementNoise);
+    this.state = this.state + kalmanGain * (measurement - this.state);
+    this.uncertainty = (1 - kalmanGain) * predictedUncertainty;
+
+    return this.state;
+  }
+
+  /**
+   * Reset the filter to initial state
+   */
+  reset() {
+    this.state = 0;
+    this.uncertainty = 1.0;
+  }
+}
+
 class CredentialManager {
   constructor() {
     this.storageKey = "cortex_credentials";
@@ -483,202 +522,6 @@ class CanvasDrawing {
   }
 }
 
-class KalmanFilter {
-  /**
-   * @param {number} processNoise - Process noise variance (how much we trust the model)
-   * @param {number} measurementNoise - Measurement noise variance (how much we trust the measurements)
-   * @param {number} smoothingFactor - Smoothing factor (0-1, higher = more smoothing)
-   */
-  constructor(processNoise = 0.01, measurementNoise = 0.1, smoothingFactor = 0.8) {
-    this.processNoise = processNoise;
-    this.measurementNoise = measurementNoise;
-    this.smoothingFactor = smoothingFactor;
-    
-    // State: [x, y, vx, vy] - position and velocity
-    this.state = [0, 0, 0, 0];
-    this.covariance = [
-      [1, 0, 0, 0],
-      [0, 1, 0, 0],
-      [0, 0, 1, 0],
-      [0, 0, 0, 1]
-    ];
-    
-    // State transition matrix (constant velocity model)
-    this.F = [
-      [1, 0, 1, 0],
-      [0, 1, 0, 1],
-      [0, 0, 1, 0],
-      [0, 0, 0, 1]
-    ];
-    
-    // Measurement matrix (we only measure position)
-    this.H = [
-      [1, 0, 0, 0],
-      [0, 1, 0, 0]
-    ];
-    
-    // Process noise matrix
-    this.Q = [
-      [this.processNoise, 0, 0, 0],
-      [0, this.processNoise, 0, 0],
-      [0, 0, this.processNoise, 0],
-      [0, 0, 0, this.processNoise]
-    ];
-    
-    // Measurement noise matrix
-    this.R = [
-      [this.measurementNoise, 0],
-      [0, this.measurementNoise]
-    ];
-  }
-
-  /**
-   * @param {number} x - Measured x position
-   * @param {number} y - Measured y position
-   * @returns {{x: number, y: number}} - Smoothed position
-   */
-  update(x, y) {
-    // Prediction step
-    this.state = this.multiplyMatrix(this.F, this.state);
-    this.covariance = this.addMatrices(
-      this.multiplyMatrices(this.multiplyMatrices(this.F, this.covariance), this.transpose(this.F)),
-      this.Q
-    );
-    
-    // Update step
-    const measurement = [x, y];
-    const predictedMeasurement = this.multiplyMatrix(this.H, this.state);
-    const innovation = this.subtractVectors(measurement, predictedMeasurement);
-    
-    const S = this.addMatrices(
-      this.multiplyMatrices(this.multiplyMatrices(this.H, this.covariance), this.transpose(this.H)),
-      this.R
-    );
-    
-    const K = this.multiplyMatrices(
-      this.multiplyMatrices(this.covariance, this.transpose(this.H)),
-      this.inverse2x2(S)
-    );
-    
-    this.state = this.addVectors(
-      this.state,
-      this.multiplyMatrix(this.transpose(K), innovation)
-    );
-    
-    const I = this.identityMatrix(4);
-    const KH = this.multiplyMatrices(K, this.H);
-    this.covariance = this.multiplyMatrices(
-      this.subtractMatrices(I, KH),
-      this.covariance
-    );
-    
-    // Apply additional smoothing factor
-    const smoothedX = this.state[0] * this.smoothingFactor + x * (1 - this.smoothingFactor);
-    const smoothedY = this.state[1] * this.smoothingFactor + y * (1 - this.smoothingFactor);
-    
-    return { x: smoothedX, y: smoothedY };
-  }
-
-  /**
-   * @param {number} smoothingFactor - New smoothing factor (0-1)
-   */
-  setSmoothingFactor(smoothingFactor) {
-    this.smoothingFactor = Math.max(0, Math.min(1, smoothingFactor));
-  }
-
-  // Matrix utility methods
-  multiplyMatrix(matrix, vector) {
-    const result = [];
-    for (let i = 0; i < matrix.length; i++) {
-      let sum = 0;
-      for (let j = 0; j < vector.length; j++) {
-        sum += matrix[i][j] * vector[j];
-      }
-      result.push(sum);
-    }
-    return result;
-  }
-
-  multiplyMatrices(a, b) {
-    const result = [];
-    for (let i = 0; i < a.length; i++) {
-      result[i] = [];
-      for (let j = 0; j < b[0].length; j++) {
-        let sum = 0;
-        for (let k = 0; k < a[0].length; k++) {
-          sum += a[i][k] * b[k][j];
-        }
-        result[i][j] = sum;
-      }
-    }
-    return result;
-  }
-
-  addMatrices(a, b) {
-    const result = [];
-    for (let i = 0; i < a.length; i++) {
-      result[i] = [];
-      for (let j = 0; j < a[0].length; j++) {
-        result[i][j] = a[i][j] + b[i][j];
-      }
-    }
-    return result;
-  }
-
-  subtractMatrices(a, b) {
-    const result = [];
-    for (let i = 0; i < a.length; i++) {
-      result[i] = [];
-      for (let j = 0; j < a[0].length; j++) {
-        result[i][j] = a[i][j] - b[i][j];
-      }
-    }
-    return result;
-  }
-
-  addVectors(a, b) {
-    return a.map((val, i) => val + b[i]);
-  }
-
-  subtractVectors(a, b) {
-    return a.map((val, i) => val - b[i]);
-  }
-
-  transpose(matrix) {
-    const result = [];
-    for (let i = 0; i < matrix[0].length; i++) {
-      result[i] = [];
-      for (let j = 0; j < matrix.length; j++) {
-        result[i][j] = matrix[j][i];
-      }
-    }
-    return result;
-  }
-
-  inverse2x2(matrix) {
-    const det = matrix[0][0] * matrix[1][1] - matrix[0][1] * matrix[1][0];
-    if (Math.abs(det) < 1e-10) {
-      return [[1, 0], [0, 1]]; // Return identity if singular
-    }
-    const invDet = 1 / det;
-    return [
-      [matrix[1][1] * invDet, -matrix[0][1] * invDet],
-      [-matrix[1][0] * invDet, matrix[0][0] * invDet]
-    ];
-  }
-
-  identityMatrix(size) {
-    const result = [];
-    for (let i = 0; i < size; i++) {
-      result[i] = [];
-      for (let j = 0; j < size; j++) {
-        result[i][j] = i === j ? 1 : 0;
-      }
-    }
-    return result;
-  }
-}
-
 class FaceTracker {
   /**
    * @param {string} videoId
@@ -693,13 +536,8 @@ class FaceTracker {
     this.scalingFactor = 2.0;
     this.eyeX = 0;
     this.eyeY = 0;
-    
-    // Initialize Kalman filter for eye position smoothing
-    // Adjust these parameters in the code as needed:
-    // - processNoise: 0.01 (how much we trust the model)
-    // - measurementNoise: 0.1 (how much we trust the measurements) 
-    // - smoothingFactor: 0.8 (0-1, higher = more smoothing)
-    this.kalmanFilter = new KalmanFilter(0.01, 0.1, 0.8);
+    this.kalmanFilterX = new KalmanFilter();
+    this.kalmanFilterY = new KalmanFilter();
 
     this.setupFaceMesh();
     this.setupCamera();
@@ -737,16 +575,18 @@ class FaceTracker {
    * @param {any} results
    */
   onResults(results) {
-    if (results.multiFaceLandmarks) {
+    if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
       for (const landmarks of results.multiFaceLandmarks) {
         const leftEye = landmarks[33];
         const rightEye = landmarks[133];
 
-        const smoothedLeftEye = this.kalmanFilter.update(leftEye.x, leftEye.y);
-        const smoothedRightEye = this.kalmanFilter.update(rightEye.x, rightEye.y);
+        // Calculate average eye position
+        const rawEyeX = (leftEye.x + rightEye.x) / 2;
+        const rawEyeY = (leftEye.y + rightEye.y) / 2;
 
-        this.eyeX = (smoothedLeftEye.x + smoothedRightEye.x) / 2;
-        this.eyeY = (smoothedLeftEye.y + smoothedRightEye.y) / 2;
+        // Apply Kalman filtering to smooth the position
+        this.eyeX = this.kalmanFilterX.update(rawEyeX);
+        this.eyeY = this.kalmanFilterY.update(rawEyeY);
 
         const centerX = this.drawingCanvas.canvas.width / 2;
         const centerY = this.drawingCanvas.canvas.height / 2;
@@ -757,6 +597,9 @@ class FaceTracker {
 
         this.drawingCanvas.draw(canvasX, canvasY);
       }
+    } else {
+      // No face detected - could reset filters here if needed
+      // this.resetFilters();
     }
   }
 
@@ -765,9 +608,14 @@ class FaceTracker {
    */
   setScalingFactor(factor) {
     this.scalingFactor = factor;
-    this.drawingCanvas.updateStatus(
-      `Sensitivity ${this.scalingFactor.toFixed(1)}x`,
-    );
+  }
+
+  /**
+   * Reset the Kalman filters (useful when face tracking is lost and regained)
+   */
+  resetFilters() {
+    this.kalmanFilterX.reset();
+    this.kalmanFilterY.reset();
   }
 
   increaseSensitivity() {

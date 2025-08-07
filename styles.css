@@ -286,3 +286,13 @@ button {
 .hidden {
   display: none !important;
 }
+
+.info-text {
+  font-size: 11px;
+  color: #666;
+  line-height: 1.4;
+}
+
+.info-text p {
+  margin: 2px 0;
+}
