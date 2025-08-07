@@ -6,6 +6,12 @@ const CREATE_SESSION_ID = 5;
 const SUB_REQUEST_ID = 6;
 const WARNING_CODE_HEADSET_DISCOVERY_COMPLETE = 142;
 
+const COLOR_BLACK = "#000000";
+const COLOR_RED = "#ff0000";
+const COLOR_GREEN = "#00ff00";
+const COLOR_CURSOR = "red";
+const COLOR_ERASE = "rgba(0,0,0,1)";
+
 class KalmanFilter {
   /**
    * @param {number} processNoise - Process noise covariance
@@ -331,7 +337,7 @@ class CanvasDrawing {
     this.isErasing = false;
     this.lastX = 0;
     this.lastY = 0;
-    this.currentColor = "#000000";
+    this.currentColor = COLOR_BLACK;
     this.undoStack = [];
     this.redoStack = [];
     this.cursor = this.createCursor();
@@ -347,7 +353,7 @@ class CanvasDrawing {
     const cursor = document.createElement("div");
     cursor.style.width = "10px";
     cursor.style.height = "10px";
-    cursor.style.backgroundColor = "red";
+    cursor.style.backgroundColor = COLOR_CURSOR;
     cursor.style.borderRadius = "50%";
     cursor.style.position = "fixed";
     cursor.style.pointerEvents = "none";
@@ -410,7 +416,7 @@ class CanvasDrawing {
       if (this.isErasing) {
         this.ctx.globalCompositeOperation = "destination-out";
         this.ctx.lineWidth = 30;
-        this.ctx.strokeStyle = "rgba(0,0,0,1)";
+        this.ctx.strokeStyle = COLOR_ERASE;
       } else {
         this.ctx.globalCompositeOperation = "source-over";
         this.ctx.lineWidth = 2;
@@ -616,9 +622,9 @@ class KeybindManager {
     this.keybinds.set("z", () => this.drawingCanvas.undo());
     this.keybinds.set("y", () => this.drawingCanvas.redo());
 
-    this.keybinds.set("1", () => this.setColor("#ff0000", "Red"));
-    this.keybinds.set("2", () => this.setColor("#00ff00", "Green"));
-    this.keybinds.set("4", () => this.setColor("#000000", "Black"));
+    this.keybinds.set("1", () => this.setColor(COLOR_RED, "Red"));
+    this.keybinds.set("2", () => this.setColor(COLOR_GREEN, "Green"));
+    this.keybinds.set("4", () => this.setColor(COLOR_BLACK, "Black"));
 
     this.keybinds.set("ArrowUp", () => this.faceTracker.increaseSensitivity());
     this.keybinds.set("ArrowDown", () =>
@@ -738,9 +744,9 @@ class MenuNavigator {
         id: "color-controls",
         title: "Colours",
         actions: [
-          { name: "Red", action: () => this.setColor("#ff0000", "Red") },
-          { name: "Green", action: () => this.setColor("#00ff00", "Green") },
-          { name: "Black", action: () => this.setColor("#000000", "Black") },
+          { name: "Red", action: () => this.setColor(COLOR_RED, "Red") },
+          { name: "Green", action: () => this.setColor(COLOR_GREEN, "Green") },
+          { name: "Black", action: () => this.setColor(COLOR_BLACK, "Black") },
         ],
       },
     ];
