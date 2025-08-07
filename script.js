@@ -337,7 +337,6 @@ class CanvasDrawing {
     this.cursor = this.createCursor();
 
     this.resizeCanvas();
-    this.drawStarOutline();
     this.setupEventListeners();
   }
 
@@ -360,38 +359,6 @@ class CanvasDrawing {
   resizeCanvas() {
     this.canvas.width = window.innerWidth - 320;
     this.canvas.height = window.innerHeight;
-    this.drawStarOutline();
-  }
-
-  drawStarOutline() {
-    const centerX = this.canvas.width / 2;
-    const centerY = this.canvas.height / 2;
-    const outerRadius = Math.min(this.canvas.width, this.canvas.height) * 0.25;
-    const innerRadius = outerRadius * 0.4;
-    const spikes = 5;
-
-    this.ctx.save();
-    this.ctx.strokeStyle = "#ddd";
-    this.ctx.lineWidth = 3;
-    this.ctx.setLineDash([10, 5]);
-    this.ctx.beginPath();
-
-    for (let i = 0; i < spikes * 2; i++) {
-      const angle = (i * Math.PI) / spikes;
-      const radius = i % 2 === 0 ? outerRadius : innerRadius;
-      const x = centerX + Math.cos(angle - Math.PI / 2) * radius;
-      const y = centerY + Math.sin(angle - Math.PI / 2) * radius;
-
-      if (i === 0) {
-        this.ctx.moveTo(x, y);
-      } else {
-        this.ctx.lineTo(x, y);
-      }
-    }
-
-    this.ctx.closePath();
-    this.ctx.stroke();
-    this.ctx.restore();
   }
 
   saveCanvasState() {
@@ -425,7 +392,6 @@ class CanvasDrawing {
     const img = new Image();
     img.onload = () => {
       this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-      this.drawStarOutline();
       this.ctx.drawImage(img, 0, 0);
     };
     img.src = dataURL;
@@ -498,7 +464,6 @@ class CanvasDrawing {
   clearCanvas() {
     this.saveCanvasState();
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-    this.drawStarOutline();
     this.updateStatus("Canvas Cleared");
   }
 
@@ -945,21 +910,188 @@ class HeadsetController {
   }
 }
 
-const credentialManager = new CredentialManager();
-const drawingCanvas = new CanvasDrawing("canvas");
-const faceTracker = new FaceTracker(
-  "input-video",
-  "output-canvas",
-  drawingCanvas,
-);
-const keybindManager = new KeybindManager(drawingCanvas, faceTracker);
-const menuNavigator = new MenuNavigator(drawingCanvas);
-window.menuNavigator = menuNavigator;
-const headsetController = new HeadsetController(
-  drawingCanvas,
-  credentialManager,
-  menuNavigator,
-);
-const loginManager = new LoginManager(credentialManager, () => {
-  headsetController.initialize();
-});
+class TemplateManager {
+  /**
+   * @param {HTMLCanvasElement} canvas
+   * @param {CanvasRenderingContext2D} ctx
+   * @param {string} defaultTemplate
+   */
+  constructor(canvas, ctx, defaultTemplate = "rectangle") {
+    this.canvas = canvas;
+    this.ctx = ctx;
+    this.currentTemplate = defaultTemplate;
+    this.templateButtons = Array.from(
+      document.querySelectorAll(".template-btn"),
+    );
+    this.setupTemplateButtons();
+    this.updateActiveButton();
+    this.drawCurrentTemplate();
+  }
+
+  setupTemplateButtons() {
+    this.templateButtons.forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const template = btn.dataset.template;
+        this.setCurrentTemplate(template);
+      });
+    });
+  }
+
+  setCurrentTemplate(template) {
+    if (this.currentTemplate !== template) {
+      this.currentTemplate = template;
+      this.updateActiveButton();
+      this.drawCurrentTemplate();
+    }
+  }
+
+  updateActiveButton() {
+    this.templateButtons.forEach((btn) => {
+      btn.classList.toggle(
+        "active",
+        btn.dataset.template === this.currentTemplate,
+      );
+    });
+  }
+
+  drawCurrentTemplate() {
+    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    switch (this.currentTemplate) {
+      case "star":
+        this.drawStarOutline();
+        break;
+      case "rectangle":
+        this.drawRectangleOutline();
+        break;
+      case "circle":
+        this.drawCircleOutline();
+        break;
+      case "parallelogram":
+        this.drawParallelogramOutline();
+        break;
+    }
+  }
+
+  drawStarOutline() {
+    const { canvas, ctx } = this;
+    const centerX = canvas.width / 2;
+    const centerY = canvas.height / 2;
+    const outerRadius = Math.min(canvas.width, canvas.height) * 0.25;
+    const innerRadius = outerRadius * 0.4;
+    const spikes = 5;
+    ctx.save();
+    ctx.strokeStyle = "#ddd";
+    ctx.lineWidth = 3;
+    ctx.setLineDash([10, 5]);
+    ctx.beginPath();
+    for (let i = 0; i < spikes * 2; i++) {
+      const angle = (i * Math.PI) / spikes;
+      const radius = i % 2 === 0 ? outerRadius : innerRadius;
+      const x = centerX + Math.cos(angle - Math.PI / 2) * radius;
+      const y = centerY + Math.sin(angle - Math.PI / 2) * radius;
+      if (i === 0) {
+        ctx.moveTo(x, y);
+      } else {
+        ctx.lineTo(x, y);
+      }
+    }
+    ctx.closePath();
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  drawRectangleOutline() {
+    const { canvas, ctx } = this;
+    const centerX = canvas.width / 2;
+    const centerY = canvas.height / 2;
+    const width = Math.min(canvas.width, canvas.height) * 0.4;
+    const height = width * 0.6;
+    ctx.save();
+    ctx.strokeStyle = "#ddd";
+    ctx.lineWidth = 3;
+    ctx.setLineDash([10, 5]);
+    ctx.strokeRect(centerX - width / 2, centerY - height / 2, width, height);
+    ctx.restore();
+  }
+
+  drawCircleOutline() {
+    const { canvas, ctx } = this;
+    const centerX = canvas.width / 2;
+    const centerY = canvas.height / 2;
+    const radius = Math.min(canvas.width, canvas.height) * 0.2;
+    ctx.save();
+    ctx.strokeStyle = "#ddd";
+    ctx.lineWidth = 3;
+    ctx.setLineDash([10, 5]);
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  drawParallelogramOutline() {
+    const { canvas, ctx } = this;
+    const centerX = canvas.width / 2;
+    const centerY = canvas.height / 2;
+    const width = Math.min(canvas.width, canvas.height) * 0.4;
+    const height = width * 0.5;
+    const skew = width * 0.2;
+    ctx.save();
+    ctx.strokeStyle = "#ddd";
+    ctx.lineWidth = 3;
+    ctx.setLineDash([10, 5]);
+    ctx.beginPath();
+    ctx.moveTo(centerX - width / 2 + skew, centerY - height / 2);
+    ctx.lineTo(centerX + width / 2 + skew, centerY - height / 2);
+    ctx.lineTo(centerX + width / 2 - skew, centerY + height / 2);
+    ctx.lineTo(centerX - width / 2 - skew, centerY + height / 2);
+    ctx.closePath();
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  redraw() {
+    this.drawCurrentTemplate();
+  }
+
+  onResize() {
+    this.drawCurrentTemplate();
+  }
+}
+
+window.onload = (_) => {
+  const credentialManager = new CredentialManager();
+  const drawingCanvas = new CanvasDrawing("canvas");
+  const faceTracker = new FaceTracker(
+    "input-video",
+    "output-canvas",
+    drawingCanvas,
+  );
+  const keybindManager = new KeybindManager(drawingCanvas, faceTracker);
+  const menuNavigator = new MenuNavigator(drawingCanvas);
+  window.menuNavigator = menuNavigator;
+  const headsetController = new HeadsetController(
+    drawingCanvas,
+    credentialManager,
+    menuNavigator,
+  );
+  const loginManager = new LoginManager(credentialManager, () => {
+    headsetController.initialize();
+  });
+  const templateManager = new TemplateManager(
+    drawingCanvas.canvas,
+    drawingCanvas.ctx,
+    "rectangle",
+  );
+  drawingCanvas.resizeCanvas = () => {
+    this.canvas.width = window.innerWidth - 320;
+    this.canvas.height = window.innerHeight;
+    templateManager.onResize();
+  };
+  drawingCanvas.clearCanvas = () => {
+    this.saveCanvasState();
+    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    templateManager.redraw();
+    this.updateStatus("Canvas Cleared");
+  };
+};

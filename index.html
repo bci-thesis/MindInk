@@ -4,10 +4,11 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Eye-Tracking Paint App</title>
+    <link rel="stylesheet" href="styles.css" />
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils"></script>
-    <link rel="stylesheet" href="styles.css" />
+    <script src="script.js"></script>
   </head>
   <body>
     <!-- Login Overlay -->
@@ -86,7 +87,37 @@
       </div>
     </div>
 
+    <!-- Templates Panel (Right Side) -->
+    <div id="templates-panel">
+      <h3>Templates</h3>
+      <div class="template-list">
+        <button
+          id="starTemplate"
+          class="template-btn active"
+          data-template="star"
+        >
+          Star (6)
+        </button>
+        <button
+          id="rectangleTemplate"
+          class="template-btn"
+          data-template="rectangle"
+        >
+          Rectangle (7)
+        </button>
+        <button id="circleTemplate" class="template-btn" data-template="circle">
+          Circle (8)
+        </button>
+        <button
+          id="parallelogramTemplate"
+          class="template-btn"
+          data-template="parallelogram"
+        >
+          Parallelogram (9)
+        </button>
+      </div>
+    </div>
+
     <canvas id="canvas"></canvas>
-    <script src="script.js"></script>
   </body>
 </html>
