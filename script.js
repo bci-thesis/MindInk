@@ -666,6 +666,8 @@ class HeadsetController {
     this.socketURL = "wss://localhost:6868";
     this.streams = ["com"];
     this.headset = null;
+    this.lastActionTime = 0;
+    this.actionDelay = 2000;
     this.setupCommandHandler();
   }
 
@@ -693,15 +695,27 @@ class HeadsetController {
         return;
       }
       
+      const currentTime = Date.now();
+      if (currentTime - this.lastActionTime < this.actionDelay) {
+        console.log(`too soon since last action`);
+        return;
+      }
+
       switch (command) {
         case "push":
           this.drawingCanvas.startDrawing();
+          this.lastActionTime = currentTime;
+          console.log('Headset: Started drawing');
           break;
         case "pull":
           this.drawingCanvas.stopDrawing();
+          this.lastActionTime = currentTime;
+          console.log('Headset: Stopped drawing');
           break;
         case "lift":
           this.drawingCanvas.clearCanvas();
+          this.lastActionTime = currentTime;
+          console.log('Headset: Cleared canvas');
           break;
       }
     });
