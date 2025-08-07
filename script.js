@@ -6,6 +6,109 @@ const CREATE_SESSION_ID = 5;
 const SUB_REQUEST_ID = 6;
 const WARNING_CODE_HEADSET_DISCOVERY_COMPLETE = 142;
 
+class CredentialManager {
+  constructor() {
+    this.storageKey = 'cortex_credentials';
+  }
+
+  /**
+   * @returns {{clientID: string, clientSecret: string} | null}
+   */
+  getCredentials() {
+    const stored = localStorage.getItem(this.storageKey);
+    if (stored) {
+      try {
+        return JSON.parse(stored);
+      } catch (e) {
+        console.error('Failed to parse stored credentials:', e);
+        return null;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * @param {string} clientID
+   * @param {string} clientSecret
+   */
+  saveCredentials(clientID, clientSecret) {
+    const credentials = { clientID, clientSecret };
+    localStorage.setItem(this.storageKey, JSON.stringify(credentials));
+  }
+
+  clearCredentials() {
+    localStorage.removeItem(this.storageKey);
+  }
+
+  hasCredentials() {
+    return this.getCredentials() !== null;
+  }
+}
+
+class LoginManager {
+  /**
+   * @param {CredentialManager} credentialManager
+   * @param {() => void} onLoginSuccess
+   */
+  constructor(credentialManager, onLoginSuccess) {
+    this.credentialManager = credentialManager;
+    this.onLoginSuccess = onLoginSuccess;
+    this.loginOverlay = document.getElementById('login-overlay');
+    this.loginForm = document.getElementById('login-form');
+    this.clearCredentialsBtn = document.getElementById('clear-credentials');
+    
+    this.setupEventListeners();
+    this.checkCredentials();
+  }
+
+  setupEventListeners() {
+    this.loginForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      this.handleLogin();
+    });
+
+    this.clearCredentialsBtn.addEventListener('click', () => {
+      this.credentialManager.clearCredentials();
+      this.showLoginForm();
+    });
+  }
+
+  checkCredentials() {
+    if (this.credentialManager.hasCredentials()) {
+      this.hideLoginForm();
+      this.onLoginSuccess();
+    } else {
+      this.showLoginForm();
+    }
+  }
+
+  handleLogin() {
+    const clientID = document.getElementById('client-id').value.trim();
+    const clientSecret = document.getElementById('client-secret').value.trim();
+
+    if (!clientID || !clientSecret) {
+      alert('Please enter both Client ID and Client Secret');
+      return;
+    }
+
+    this.credentialManager.saveCredentials(clientID, clientSecret);
+    this.hideLoginForm();
+    this.onLoginSuccess();
+  }
+
+  showLoginForm() {
+    this.loginOverlay.classList.remove('hidden');
+  }
+
+  hideLoginForm() {
+    this.loginOverlay.classList.add('hidden');
+  }
+
+  reinitialize() {
+    this.checkCredentials();
+  }
+}
+
 class Headset {
   /**
    * @param {{clientID: string, clientSecret: string}} user
@@ -97,8 +200,6 @@ class Headset {
     const params = {
       clientId: this.user.clientID,
       clientSecret: this.user.clientSecret,
-      license: user.license,
-      debit: user.debit,
     };
     this.request(AUTHORISE_ID, "authorize", params);
   }
@@ -557,21 +658,36 @@ class KeybindManager {
 class HeadsetController {
   /**
    * @param {CanvasDrawing} drawingCanvas
+   * @param {CredentialManager} credentialManager
    */
-  constructor(drawingCanvas) {
+  constructor(drawingCanvas, credentialManager) {
     this.drawingCanvas = drawingCanvas;
-    this.user = {
-      clientID: "",
-      clientSecret: "",
-    };
+    this.credentialManager = credentialManager;
     this.socketURL = "wss://localhost:6868";
     this.streams = ["com"];
+    this.headset = null;
+    this.setupCommandHandler();
+  }
+
+  initialize() {
+    const credentials = this.credentialManager.getCredentials();
+    if (!credentials) {
+      console.error('No credentials available');
+      return;
+    }
+
+    this.user = credentials;
     this.headset = new Headset(this.user, this.socketURL, this.streams);
     this.setupCommandHandler();
     this.headset.connect();
   }
 
   setupCommandHandler() {
+    if (!this.headset) {
+      console.error('Headset not initialized');
+      return;
+    }
+    
     this.headset.handleCommand((command, intensity) => {
       if (intensity <= 0.5) {
         return;
@@ -592,7 +708,11 @@ class HeadsetController {
   }
 }
 
+const credentialManager = new CredentialManager();
 const drawingCanvas = new CanvasDrawing("canvas");
 const faceTracker = new FaceTracker("input-video", "output-canvas", drawingCanvas);
 const keybindManager = new KeybindManager(drawingCanvas, faceTracker);
-const headsetController = new HeadsetController(drawingCanvas);
+const headsetController = new HeadsetController(drawingCanvas, credentialManager);
+const loginManager = new LoginManager(credentialManager, () => {
+  headsetController.initialize();
+});
