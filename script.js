@@ -230,7 +230,7 @@ function restoreCanvasState(dataURL) {
   const img = new Image();
   img.onload = function() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    drawStarOutline(); // Redraw star outline first
+    drawCurrentTemplate(); // Redraw current template
     ctx.drawImage(img, 0, 0);
   };
   img.src = dataURL;
@@ -249,6 +249,9 @@ cursor.style.position = 'fixed';
 cursor.style.pointerEvents = 'none';
 cursor.style.zIndex = '1000';
 document.body.appendChild(cursor);
+
+// Template selection
+let currentTemplate = 'rectangle'; // Default template
 
 // Function to draw star outline
 function drawStarOutline() {
@@ -282,11 +285,82 @@ function drawStarOutline() {
   ctx.restore();
 }
 
+// Function to draw rectangle outline
+function drawRectangleOutline() {
+  const centerX = canvas.width / 2;
+  const centerY = canvas.height / 2;
+  const width = Math.min(canvas.width, canvas.height) * 0.4;
+  const height = width * 0.6;
+  
+  ctx.save();
+  ctx.strokeStyle = '#ddd';
+  ctx.lineWidth = 3;
+  ctx.setLineDash([10, 5]); // Dashed line
+  ctx.strokeRect(centerX - width/2, centerY - height/2, width, height);
+  ctx.restore();
+}
+
+// Function to draw circle outline
+function drawCircleOutline() {
+  const centerX = canvas.width / 2;
+  const centerY = canvas.height / 2;
+  const radius = Math.min(canvas.width, canvas.height) * 0.2;
+  
+  ctx.save();
+  ctx.strokeStyle = '#ddd';
+  ctx.lineWidth = 3;
+  ctx.setLineDash([10, 5]); // Dashed line
+  ctx.beginPath();
+  ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
+  ctx.stroke();
+  ctx.restore();
+}
+
+// Function to draw parallelogram outline
+function drawParallelogramOutline() {
+  const centerX = canvas.width / 2;
+  const centerY = canvas.height / 2;
+  const width = Math.min(canvas.width, canvas.height) * 0.4;
+  const height = width * 0.5;
+  const skew = width * 0.2; // Skew amount
+  
+  ctx.save();
+  ctx.strokeStyle = '#ddd';
+  ctx.lineWidth = 3;
+  ctx.setLineDash([10, 5]); // Dashed line
+  ctx.beginPath();
+  ctx.moveTo(centerX - width/2 + skew, centerY - height/2);
+  ctx.lineTo(centerX + width/2 + skew, centerY - height/2);
+  ctx.lineTo(centerX + width/2 - skew, centerY + height/2);
+  ctx.lineTo(centerX - width/2 - skew, centerY + height/2);
+  ctx.closePath();
+  ctx.stroke();
+  ctx.restore();
+}
+
+// Function to draw current template outline
+function drawCurrentTemplate() {
+  switch(currentTemplate) {
+    case 'star':
+      drawStarOutline();
+      break;
+    case 'rectangle':
+      drawRectangleOutline();
+      break;
+    case 'circle':
+      drawCircleOutline();
+      break;
+    case 'parallelogram':
+      drawParallelogramOutline();
+      break;
+  }
+}
+
 // Set canvas size
 function resizeCanvas() {
-  canvas.width = window.innerWidth - 320;
+  canvas.width = window.innerWidth - 520; // 320px left panel + 200px right panel
   canvas.height = window.innerHeight;
-  drawStarOutline(); // Draw star outline after resizing
+  drawCurrentTemplate(); // Draw current template after resizing
 }
 resizeCanvas();
 window.addEventListener("resize", resizeCanvas);
@@ -319,6 +393,7 @@ const camera = new Camera(video, {
   width: 320,
   height: 240,
 });
+
 camera.start();
 
 function onResults(results) {
@@ -388,7 +463,7 @@ document.getElementById("stopBtn").addEventListener("click", () => {
 document.getElementById('clearBtn').addEventListener('click', () => {
   saveCanvasState(); // Save state before clearing
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-  drawStarOutline(); // Redraw star outline after clearing
+  drawCurrentTemplate(); // Redraw current template after clearing
   document.getElementById('status').textContent = 'Status: Canvas Cleared';
 });
 
@@ -417,6 +492,31 @@ colorButtons.forEach(button => {
   });
 });
 
+// Template button functionality
+const templateButtons = document.querySelectorAll('.template-btn');
+
+// Set initial active template (star)
+document.getElementById('starTemplate').classList.add('active');
+
+templateButtons.forEach(button => {
+  button.addEventListener('click', () => {
+    // Remove active class from all template buttons
+    templateButtons.forEach(btn => btn.classList.remove('active'));
+    
+    // Add active class to clicked button
+    button.classList.add('active');
+    
+    // Set the current template
+    currentTemplate = button.dataset.template;
+    
+    // Clear canvas and redraw with new template
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    drawCurrentTemplate();
+    
+    document.getElementById('status').textContent = `Status: Template changed to ${button.textContent.split(' (')[0]}`;
+  });
+});
+
 document.getElementById('undoBtn').addEventListener('click', () => {
   undo();
   document.getElementById('status').textContent = 'Status: Undo';
@@ -441,7 +541,7 @@ document.addEventListener('keydown', (e) => {
   } else if (e.key === 'c') {
     saveCanvasState(); // Save state before clearing
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    drawStarOutline(); // Redraw star outline after clearing
+    drawCurrentTemplate(); // Redraw current template after clearing
     document.getElementById('status').textContent = 'Status: Canvas Cleared';
   } else if (e.key === 'e') {
     isErasing = !isErasing;
@@ -475,18 +575,50 @@ document.addEventListener('keydown', (e) => {
     document.getElementById('greenColor').classList.add('active');
     currentColor = '#00ff00';
     document.getElementById('status').textContent = 'Status: Color changed to Green';
-  /*} else if (e.key === '3') {
+  } else if (e.key === '3') {
     // Select Blue
     colorButtons.forEach(btn => btn.classList.remove('active'));
     document.getElementById('blueColor').classList.add('active');
     currentColor = '#0000ff';
-    document.getElementById('status').textContent = 'Status: Color changed to Blue';*/
+    document.getElementById('status').textContent = 'Status: Color changed to Blue';
   } else if (e.key === '4') {
     // Select Black
     colorButtons.forEach(btn => btn.classList.remove('active'));
     document.getElementById('blackColor').classList.add('active');
     currentColor = '#000000';
     document.getElementById('status').textContent = 'Status: Color changed to Black';
+  } else if (e.key === '6') {
+    // Select Star template
+    templateButtons.forEach(btn => btn.classList.remove('active'));
+    document.getElementById('starTemplate').classList.add('active');
+    currentTemplate = 'star';
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    drawCurrentTemplate();
+    document.getElementById('status').textContent = 'Status: Template changed to Star';
+  } else if (e.key === '7') {
+    // Select Rectangle template
+    templateButtons.forEach(btn => btn.classList.remove('active'));
+    document.getElementById('rectangleTemplate').classList.add('active');
+    currentTemplate = 'rectangle';
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    drawCurrentTemplate();
+    document.getElementById('status').textContent = 'Status: Template changed to Rectangle';
+  } else if (e.key === '8') {
+    // Select Circle template
+    templateButtons.forEach(btn => btn.classList.remove('active'));
+    document.getElementById('circleTemplate').classList.add('active');
+    currentTemplate = 'circle';
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    drawCurrentTemplate();
+    document.getElementById('status').textContent = 'Status: Template changed to Circle';
+  } else if (e.key === '9') {
+    // Select Parallelogram template
+    templateButtons.forEach(btn => btn.classList.remove('active'));
+    document.getElementById('parallelogramTemplate').classList.add('active');
+    currentTemplate = 'parallelogram';
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    drawCurrentTemplate();
+    document.getElementById('status').textContent = 'Status: Template changed to Parallelogram';
   } else if (e.key === 'ArrowUp') {
     scalingFactor += 0.5;
     document.getElementById('status').textContent = `Status: Sensitivity ${scalingFactor.toFixed(1)}x`;
@@ -522,7 +654,7 @@ headset.handleCommand((command, intensity) => {
       break;
     case "lift":
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      drawStarOutline(); // Redraw star outline after clearing
+      drawCurrentTemplate(); // Redraw current template after clearing
       document.getElementById("status").textContent = "Status: Canvas Cleared";
       break;
   }
