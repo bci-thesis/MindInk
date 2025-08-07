@@ -483,6 +483,202 @@ class CanvasDrawing {
   }
 }
 
+class KalmanFilter {
+  /**
+   * @param {number} processNoise - Process noise variance (how much we trust the model)
+   * @param {number} measurementNoise - Measurement noise variance (how much we trust the measurements)
+   * @param {number} smoothingFactor - Smoothing factor (0-1, higher = more smoothing)
+   */
+  constructor(processNoise = 0.01, measurementNoise = 0.1, smoothingFactor = 0.8) {
+    this.processNoise = processNoise;
+    this.measurementNoise = measurementNoise;
+    this.smoothingFactor = smoothingFactor;
+    
+    // State: [x, y, vx, vy] - position and velocity
+    this.state = [0, 0, 0, 0];
+    this.covariance = [
+      [1, 0, 0, 0],
+      [0, 1, 0, 0],
+      [0, 0, 1, 0],
+      [0, 0, 0, 1]
+    ];
+    
+    // State transition matrix (constant velocity model)
+    this.F = [
+      [1, 0, 1, 0],
+      [0, 1, 0, 1],
+      [0, 0, 1, 0],
+      [0, 0, 0, 1]
+    ];
+    
+    // Measurement matrix (we only measure position)
+    this.H = [
+      [1, 0, 0, 0],
+      [0, 1, 0, 0]
+    ];
+    
+    // Process noise matrix
+    this.Q = [
+      [this.processNoise, 0, 0, 0],
+      [0, this.processNoise, 0, 0],
+      [0, 0, this.processNoise, 0],
+      [0, 0, 0, this.processNoise]
+    ];
+    
+    // Measurement noise matrix
+    this.R = [
+      [this.measurementNoise, 0],
+      [0, this.measurementNoise]
+    ];
+  }
+
+  /**
+   * @param {number} x - Measured x position
+   * @param {number} y - Measured y position
+   * @returns {{x: number, y: number}} - Smoothed position
+   */
+  update(x, y) {
+    // Prediction step
+    this.state = this.multiplyMatrix(this.F, this.state);
+    this.covariance = this.addMatrices(
+      this.multiplyMatrices(this.multiplyMatrices(this.F, this.covariance), this.transpose(this.F)),
+      this.Q
+    );
+    
+    // Update step
+    const measurement = [x, y];
+    const predictedMeasurement = this.multiplyMatrix(this.H, this.state);
+    const innovation = this.subtractVectors(measurement, predictedMeasurement);
+    
+    const S = this.addMatrices(
+      this.multiplyMatrices(this.multiplyMatrices(this.H, this.covariance), this.transpose(this.H)),
+      this.R
+    );
+    
+    const K = this.multiplyMatrices(
+      this.multiplyMatrices(this.covariance, this.transpose(this.H)),
+      this.inverse2x2(S)
+    );
+    
+    this.state = this.addVectors(
+      this.state,
+      this.multiplyMatrix(this.transpose(K), innovation)
+    );
+    
+    const I = this.identityMatrix(4);
+    const KH = this.multiplyMatrices(K, this.H);
+    this.covariance = this.multiplyMatrices(
+      this.subtractMatrices(I, KH),
+      this.covariance
+    );
+    
+    // Apply additional smoothing factor
+    const smoothedX = this.state[0] * this.smoothingFactor + x * (1 - this.smoothingFactor);
+    const smoothedY = this.state[1] * this.smoothingFactor + y * (1 - this.smoothingFactor);
+    
+    return { x: smoothedX, y: smoothedY };
+  }
+
+  /**
+   * @param {number} smoothingFactor - New smoothing factor (0-1)
+   */
+  setSmoothingFactor(smoothingFactor) {
+    this.smoothingFactor = Math.max(0, Math.min(1, smoothingFactor));
+  }
+
+  // Matrix utility methods
+  multiplyMatrix(matrix, vector) {
+    const result = [];
+    for (let i = 0; i < matrix.length; i++) {
+      let sum = 0;
+      for (let j = 0; j < vector.length; j++) {
+        sum += matrix[i][j] * vector[j];
+      }
+      result.push(sum);
+    }
+    return result;
+  }
+
+  multiplyMatrices(a, b) {
+    const result = [];
+    for (let i = 0; i < a.length; i++) {
+      result[i] = [];
+      for (let j = 0; j < b[0].length; j++) {
+        let sum = 0;
+        for (let k = 0; k < a[0].length; k++) {
+          sum += a[i][k] * b[k][j];
+        }
+        result[i][j] = sum;
+      }
+    }
+    return result;
+  }
+
+  addMatrices(a, b) {
+    const result = [];
+    for (let i = 0; i < a.length; i++) {
+      result[i] = [];
+      for (let j = 0; j < a[0].length; j++) {
+        result[i][j] = a[i][j] + b[i][j];
+      }
+    }
+    return result;
+  }
+
+  subtractMatrices(a, b) {
+    const result = [];
+    for (let i = 0; i < a.length; i++) {
+      result[i] = [];
+      for (let j = 0; j < a[0].length; j++) {
+        result[i][j] = a[i][j] - b[i][j];
+      }
+    }
+    return result;
+  }
+
+  addVectors(a, b) {
+    return a.map((val, i) => val + b[i]);
+  }
+
+  subtractVectors(a, b) {
+    return a.map((val, i) => val - b[i]);
+  }
+
+  transpose(matrix) {
+    const result = [];
+    for (let i = 0; i < matrix[0].length; i++) {
+      result[i] = [];
+      for (let j = 0; j < matrix.length; j++) {
+        result[i][j] = matrix[j][i];
+      }
+    }
+    return result;
+  }
+
+  inverse2x2(matrix) {
+    const det = matrix[0][0] * matrix[1][1] - matrix[0][1] * matrix[1][0];
+    if (Math.abs(det) < 1e-10) {
+      return [[1, 0], [0, 1]]; // Return identity if singular
+    }
+    const invDet = 1 / det;
+    return [
+      [matrix[1][1] * invDet, -matrix[0][1] * invDet],
+      [-matrix[1][0] * invDet, matrix[0][0] * invDet]
+    ];
+  }
+
+  identityMatrix(size) {
+    const result = [];
+    for (let i = 0; i < size; i++) {
+      result[i] = [];
+      for (let j = 0; j < size; j++) {
+        result[i][j] = i === j ? 1 : 0;
+      }
+    }
+    return result;
+  }
+}
+
 class FaceTracker {
   /**
    * @param {string} videoId
@@ -497,6 +693,13 @@ class FaceTracker {
     this.scalingFactor = 2.0;
     this.eyeX = 0;
     this.eyeY = 0;
+    
+    // Initialize Kalman filter for eye position smoothing
+    // Adjust these parameters in the code as needed:
+    // - processNoise: 0.01 (how much we trust the model)
+    // - measurementNoise: 0.1 (how much we trust the measurements) 
+    // - smoothingFactor: 0.8 (0-1, higher = more smoothing)
+    this.kalmanFilter = new KalmanFilter(0.01, 0.1, 0.8);
 
     this.setupFaceMesh();
     this.setupCamera();
@@ -539,8 +742,11 @@ class FaceTracker {
         const leftEye = landmarks[33];
         const rightEye = landmarks[133];
 
-        this.eyeX = (leftEye.x + rightEye.x) / 2;
-        this.eyeY = (leftEye.y + rightEye.y) / 2;
+        const smoothedLeftEye = this.kalmanFilter.update(leftEye.x, leftEye.y);
+        const smoothedRightEye = this.kalmanFilter.update(rightEye.x, rightEye.y);
+
+        this.eyeX = (smoothedLeftEye.x + smoothedRightEye.x) / 2;
+        this.eyeY = (smoothedLeftEye.y + smoothedRightEye.y) / 2;
 
         const centerX = this.drawingCanvas.canvas.width / 2;
         const centerY = this.drawingCanvas.canvas.height / 2;
@@ -605,6 +811,12 @@ class KeybindManager {
     this.keybinds.set("ArrowDown", () =>
       this.faceTracker.decreaseSensitivity(),
     );
+
+    this.keybinds.set("Escape", () => {
+      if (window.menuNavigator) {
+        window.menuNavigator.clearSelection();
+      }
+    });
   }
 
   /**
@@ -671,20 +883,181 @@ class KeybindManager {
   }
 }
 
+class MenuNavigator {
+  /**
+   * @param {CanvasDrawing} drawingCanvas
+   */
+  constructor(drawingCanvas) {
+    this.drawingCanvas = drawingCanvas;
+    this.currentMenu = null;
+    this.menuSections = [
+      {
+        id: "drawing-controls",
+        title: "Drawing Controls",
+        actions: [
+          {
+            name: "Start Drawing",
+            action: () => this.drawingCanvas.startDrawing(),
+          },
+          {
+            name: "Stop Drawing",
+            action: () => this.drawingCanvas.stopDrawing(),
+          },
+          {
+            name: "Toggle Eraser",
+            action: () => this.drawingCanvas.toggleEraser(),
+          },
+        ],
+      },
+      {
+        id: "edit-controls",
+        title: "Edit Controls",
+        actions: [
+          { name: "Undo", action: () => this.drawingCanvas.undo() },
+          { name: "Redo", action: () => this.drawingCanvas.redo() },
+          {
+            name: "Clear Canvas",
+            action: () => this.drawingCanvas.clearCanvas(),
+          },
+        ],
+      },
+      {
+        id: "color-controls",
+        title: "Colours",
+        actions: [
+          { name: "Red", action: () => this.setColor("#ff0000", "Red") },
+          { name: "Green", action: () => this.setColor("#00ff00", "Green") },
+          { name: "Black", action: () => this.setColor("#000000", "Black") },
+        ],
+      },
+    ];
+
+    this.setupMenuElements();
+  }
+
+  setupMenuElements() {
+    this.menuElements = document.querySelectorAll(".menu-section");
+
+    this.menuElements.forEach((element) => {
+      element.classList.remove("selected");
+    });
+
+    this.clearSelection();
+  }
+
+  /**
+   * @param {string} color
+   * @param {string} name
+   */
+  setColor(color, name) {
+    this.drawingCanvas.setColor(color);
+    this.updateColorButton(color);
+    this.drawingCanvas.updateStatus(`Color changed to ${name}`);
+  }
+
+  /**
+   * @param {string} color
+   */
+  updateColorButton(color) {
+    const colorButtons = document.querySelectorAll(".color-btn");
+    colorButtons.forEach((btn) => btn.classList.remove("active"));
+
+    const targetButton = document.querySelector(`[data-color="${color}"]`);
+    if (targetButton) {
+      targetButton.classList.add("active");
+    }
+  }
+
+  selectMenu(menuIndex) {
+    this.menuElements.forEach((element) => {
+      element.classList.remove("selected");
+    });
+
+    if (menuIndex >= 0 && menuIndex < this.menuElements.length) {
+      this.currentMenu = menuIndex;
+      this.menuElements[menuIndex].classList.add("selected");
+      const menu = this.menuSections[menuIndex];
+      const actions = menu.actions
+        .map((action, index) => {
+          const command = index === 0 ? "push" : index === 1 ? "pull" : "lift";
+          return `${command}: ${action.name}`;
+        })
+        .join(" | ");
+      this.drawingCanvas.updateStatus(
+        `Headset: Selected ${menu.title} | ${actions}`,
+      );
+    }
+  }
+
+  executeAction(actionIndex) {
+    if (
+      this.currentMenu === null ||
+      this.currentMenu >= this.menuSections.length
+    ) {
+      return;
+    }
+
+    const menu = this.menuSections[this.currentMenu];
+    if (actionIndex >= 0 && actionIndex < menu.actions.length) {
+      const action = menu.actions[actionIndex];
+      action.action();
+      this.drawingCanvas.updateStatus(
+        `Headset: Executed ${action.name} from ${menu.title}`,
+      );
+    }
+  }
+
+  handleCommand(command) {
+    if (this.currentMenu === null) {
+      switch (command) {
+        case "push":
+          this.selectMenu(0);
+          break;
+        case "pull":
+          this.selectMenu(1);
+          break;
+        case "lift":
+          this.selectMenu(2);
+          break;
+      }
+    } else {
+      switch (command) {
+        case "push":
+          this.executeAction(0);
+          break;
+        case "pull":
+          this.executeAction(1);
+          break;
+        case "lift":
+          this.executeAction(2);
+          break;
+      }
+    }
+  }
+
+  clearSelection() {
+    this.currentMenu = null;
+    this.menuElements.forEach((element) => {
+      element.classList.remove("selected");
+    });
+  }
+}
+
 class HeadsetController {
   /**
    * @param {CanvasDrawing} drawingCanvas
    * @param {CredentialManager} credentialManager
+   * @param {MenuNavigator} menuNavigator
    */
-  constructor(drawingCanvas, credentialManager) {
+  constructor(drawingCanvas, credentialManager, menuNavigator) {
     this.drawingCanvas = drawingCanvas;
     this.credentialManager = credentialManager;
+    this.menuNavigator = menuNavigator;
     this.socketURL = "wss://localhost:6868";
     this.streams = ["com"];
     this.headset = null;
     this.lastActionTime = 0;
-    this.actionDelay = 2000;
-    this.setupCommandHandler();
+    this.actionDelay = 1000;
   }
 
   initialize() {
@@ -717,23 +1090,9 @@ class HeadsetController {
         return;
       }
 
-      switch (command) {
-        case "push":
-          this.drawingCanvas.startDrawing();
-          this.lastActionTime = currentTime;
-          console.log("Headset: Started drawing");
-          break;
-        case "pull":
-          this.drawingCanvas.stopDrawing();
-          this.lastActionTime = currentTime;
-          console.log("Headset: Stopped drawing");
-          break;
-        case "lift":
-          this.drawingCanvas.clearCanvas();
-          this.lastActionTime = currentTime;
-          console.log("Headset: Cleared canvas");
-          break;
-      }
+      this.lastActionTime = currentTime;
+      this.menuNavigator.handleCommand(command);
+      console.log(`Headset: ${command} command executed`);
     });
   }
 }
@@ -746,9 +1105,12 @@ const faceTracker = new FaceTracker(
   drawingCanvas,
 );
 const keybindManager = new KeybindManager(drawingCanvas, faceTracker);
+const menuNavigator = new MenuNavigator(drawingCanvas);
+window.menuNavigator = menuNavigator;
 const headsetController = new HeadsetController(
   drawingCanvas,
   credentialManager,
+  menuNavigator,
 );
 const loginManager = new LoginManager(credentialManager, () => {
   headsetController.initialize();
