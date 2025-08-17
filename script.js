@@ -12,6 +12,8 @@ const COLOR_GREEN = "#00ff00";
 const COLOR_CURSOR = "red";
 const COLOR_ERASE = "rgba(0,0,0,1)";
 
+const DEFAULT_DEBIT = 10;
+
 class KalmanFilter {
   /**
    * @param {number} processNoise - Process noise covariance
@@ -100,7 +102,6 @@ class LoginManager {
     this.onLoginSuccess = onLoginSuccess;
     this.loginOverlay = document.getElementById("login-overlay");
     this.loginForm = document.getElementById("login-form");
-    this.clearCredentialsBtn = document.getElementById("clear-credentials");
 
     this.setupEventListeners();
     this.checkCredentials();
@@ -110,11 +111,6 @@ class LoginManager {
     this.loginForm.addEventListener("submit", (e) => {
       e.preventDefault();
       this.handleLogin();
-    });
-
-    this.clearCredentialsBtn.addEventListener("click", () => {
-      this.credentialManager.clearCredentials();
-      this.showLoginForm();
     });
   }
 
@@ -156,7 +152,7 @@ class LoginManager {
 
 class Headset {
   /**
-   * @param {{clientID: string, clientSecret: string}} user
+   * @param {{clientID: string, clientSecret: string, debit?: number}} user
    * @param {string} socketURL
    * @param {string[]} streams
    */
@@ -219,7 +215,7 @@ class Headset {
       session: this.sessionID,
       streams: streams,
     };
-    this.request(SUB_REQUEST_ID, "subscribe", streams);
+    this.request(SUB_REQUEST_ID, "subscribe", params);
   }
 
   createSession() {
@@ -245,6 +241,7 @@ class Headset {
     const params = {
       clientId: this.user.clientID,
       clientSecret: this.user.clientSecret,
+      debit: this.user.debit || DEFAULT_DEBIT,
     };
     this.request(AUTHORISE_ID, "authorize", params);
   }
