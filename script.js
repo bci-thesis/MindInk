@@ -537,13 +537,14 @@ class CanvasDrawing {
 
   /**
    * @param {string} color
+   * @param {string} name
    */
-  setColor(color) {
+  setColor(color, name = color) {
     if (window.countdownController && window.countdownController.shouldBlockInputs()) {
       return;
     }
     this.currentColor = color;
-    this.updateStatus(`Color changed to ${color}`);
+    this.updateStatus(`Color changed to ${name}`);
   }
 
   /**
@@ -719,7 +720,7 @@ class KeybindManager {
    * @param {string} name
    */
   setColor(color, name) {
-    this.drawingCanvas.setColor(color);
+    this.drawingCanvas.setColor(color, name);
     this.updateColorButton(color);
   }
 
