@@ -374,7 +374,12 @@ class CanvasDrawing {
 
   saveCanvasState() {
     this.redoStack = [];
-    this.undoStack.push(this.canvas.toDataURL());
+    try {
+      const snapshot = this.ctx.getImageData(0, 0, this.canvas.width, this.canvas.height);
+      this.undoStack.push(snapshot);
+    } catch (e) {
+      console.error("Failed to capture canvas state:", e);
+    }
     if (this.undoStack.length > 20) {
       this.undoStack.shift();
     }
@@ -382,7 +387,12 @@ class CanvasDrawing {
 
   undo() {
     if (this.undoStack.length > 0) {
-      this.redoStack.push(this.canvas.toDataURL());
+      try {
+        const current = this.ctx.getImageData(0, 0, this.canvas.width, this.canvas.height);
+        this.redoStack.push(current);
+      } catch (e) {
+        console.error("Failed to capture current state for redo:", e);
+      }
       const previousState = this.undoStack.pop();
       this.restoreCanvasState(previousState);
     }
@@ -390,7 +400,12 @@ class CanvasDrawing {
 
   redo() {
     if (this.redoStack.length > 0) {
-      this.undoStack.push(this.canvas.toDataURL());
+      try {
+        const current = this.ctx.getImageData(0, 0, this.canvas.width, this.canvas.height);
+        this.undoStack.push(current);
+      } catch (e) {
+        console.error("Failed to capture current state for undo:", e);
+      }
       const nextState = this.redoStack.pop();
       this.restoreCanvasState(nextState);
     }
@@ -399,13 +414,28 @@ class CanvasDrawing {
   /**
    * @param {string} dataURL
    */
-  restoreCanvasState(dataURL) {
-    const img = new Image();
-    img.onload = () => {
-      this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-      this.ctx.drawImage(img, 0, 0);
-    };
-    img.src = dataURL;
+  restoreCanvasState(state) {
+    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    if (state instanceof ImageData) {
+      // If dimensions match, draw directly; otherwise scale via an offscreen canvas
+      if (state.width === this.canvas.width && state.height === this.canvas.height) {
+        this.ctx.putImageData(state, 0, 0);
+      } else {
+        const off = document.createElement("canvas");
+        off.width = state.width;
+        off.height = state.height;
+        const offCtx = off.getContext("2d");
+        offCtx.putImageData(state, 0, 0);
+        this.ctx.drawImage(off, 0, 0, this.canvas.width, this.canvas.height);
+      }
+    } else if (typeof state === "string") {
+      // Backwards compatibility if any old data URLs are present
+      const img = new Image();
+      img.onload = () => {
+        this.ctx.drawImage(img, 0, 0);
+      };
+      img.src = state;
+    }
   }
 
   /**
@@ -1085,6 +1115,8 @@ class TemplateManager {
 window.onload = (_) => {
   const credentialManager = new CredentialManager();
   const drawingCanvas = new CanvasDrawing("canvas");
+  const templateCanvas = document.getElementById("template-canvas");
+  const templateCtx = templateCanvas.getContext("2d");
   const faceTracker = new FaceTracker(
     "input-video",
     "output-canvas",
@@ -1102,13 +1134,37 @@ window.onload = (_) => {
     headsetController.initialize();
   });
   const templateManager = new TemplateManager(
-    drawingCanvas.canvas,
-    drawingCanvas.ctx,
+    templateCanvas,
+    templateCtx,
     "rectangle",
   );
+
   drawingCanvas.resizeCanvas = () => {
-    this.canvas.width = window.innerWidth - 320;
-    this.canvas.height = window.innerHeight;
+    const width = window.innerWidth - 320;
+    const height = window.innerHeight;
+    // When the canvas size changes, content is cleared. Capture state first.
+    let currentState = null;
+    try {
+      currentState = drawingCanvas.ctx.getImageData(0, 0, drawingCanvas.canvas.width, drawingCanvas.canvas.height);
+    } catch { /* ignore */ }
+
+    drawingCanvas.canvas.width = width;
+    drawingCanvas.canvas.height = height;
+    templateCanvas.width = width;
+    templateCanvas.height = height;
     templateManager.onResize();
+
+    if (currentState) {
+      // Restore previous drawing scaled to new size
+      const off = document.createElement("canvas");
+      off.width = currentState.width;
+      off.height = currentState.height;
+      const offCtx = off.getContext("2d");
+      offCtx.putImageData(currentState, 0, 0);
+      drawingCanvas.ctx.drawImage(off, 0, 0, width, height);
+    }
   };
+
+  // Ensure both canvases are sized correctly on load
+  drawingCanvas.resizeCanvas();
 };

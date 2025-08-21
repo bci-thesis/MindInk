@@ -93,6 +93,15 @@ body {
   width: calc(100vw - 520px); /* 100vw - left panel (320px) - right panel (200px) */
 }
 
+#template-canvas {
+  position: absolute;
+  left: 320px;
+  right: 200px;
+  top: 0;
+  width: calc(100vw - 520px);
+  pointer-events: none;
+}
+
 /* Templates Panel (Right Side) */
 #templates-panel {
   position: fixed;
