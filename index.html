@@ -50,16 +50,6 @@
         </div>
       </div>
 
-      <!-- Edit Controls -->
-      <div class="menu-section" id="edit-controls">
-        <h3>Edit Controls</h3>
-        <div class="button-grid">
-          <button id="undoBtn">Undo ↶ (z)</button>
-          <button id="redoBtn">Redo ↷ (y)</button>
-          <button id="clearBtn">Clear Canvas (c)</button>
-        </div>
-      </div>
-
       <!-- Color Controls -->
       <div class="menu-section" id="color-controls">
         <h3>Colours</h3>
@@ -68,6 +58,16 @@
           <button id="greenColor" class="color-btn" data-color="#00ff00">Green (2)</button>
           <button id="blueColor" class="color-btn" data-color="#0000ff">Blue (3)</button>
           <button id="blackColor" class="color-btn" data-color="#000000">Black (4)</button>
+        </div>
+      </div>
+
+      <!-- Edit Controls -->
+      <div class="menu-section" id="edit-controls">
+        <h3>Edit Controls</h3>
+        <div class="button-grid">
+          <button id="undoBtn">Undo ↶ (z)</button>
+          <button id="redoBtn">Redo ↷ (y)</button>
+          <button id="clearBtn">Clear Canvas (c)</button>
         </div>
       </div>
 
@@ -94,5 +94,18 @@
 
     <canvas id="template-canvas"></canvas>
     <canvas id="canvas"></canvas>
-  </body>
-</html>
+         <div id="canvas-overlays">
+       <button id="countdown-start" type="button">Start</button>
+       <div id="countdown-timer">01:00</div>
+       <button id="countdown-reset" type="button">Reset</button>
+     </div>
+     
+     <!-- Pens Away Overlay -->
+     <div id="pens-away-overlay" class="pens-away-overlay hidden">
+       <div class="pens-away-content">
+         <h1>PENS AWAY!</h1>
+         <p>Time's up! Put your pens down.</p>
+       </div>
+     </div>
+   </body>
+ </html>

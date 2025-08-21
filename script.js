@@ -386,6 +386,9 @@ class CanvasDrawing {
   }
 
   undo() {
+    if (window.countdownController && window.countdownController.shouldBlockInputs()) {
+      return;
+    }
     if (this.undoStack.length > 0) {
       try {
         const current = this.ctx.getImageData(0, 0, this.canvas.width, this.canvas.height);
@@ -398,7 +401,10 @@ class CanvasDrawing {
     }
   }
 
-  redo() {
+    redo() {
+    if (window.countdownController && window.countdownController.shouldBlockInputs()) {
+      return;
+    }
     if (this.redoStack.length > 0) {
       try {
         const current = this.ctx.getImageData(0, 0, this.canvas.width, this.canvas.height);
@@ -488,6 +494,9 @@ class CanvasDrawing {
   }
 
   startDrawing() {
+    if (window.countdownController && window.countdownController.shouldBlockInputs()) {
+      return;
+    }
     if (!this.isDrawing) {
       this.saveCanvasState();
     }
@@ -501,6 +510,9 @@ class CanvasDrawing {
   }
 
   toggleEraser() {
+    if (window.countdownController && window.countdownController.shouldBlockInputs()) {
+      return;
+    }
     this.isErasing = !this.isErasing;
     if (this.isErasing) {
       if (!this.isDrawing) {
@@ -515,6 +527,9 @@ class CanvasDrawing {
   }
 
   clearCanvas() {
+    if (window.countdownController && window.countdownController.shouldBlockInputs()) {
+      return;
+    }
     this.saveCanvasState();
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
     this.updateStatus("Canvas Cleared");
@@ -524,6 +539,9 @@ class CanvasDrawing {
    * @param {string} color
    */
   setColor(color) {
+    if (window.countdownController && window.countdownController.shouldBlockInputs()) {
+      return;
+    }
     this.currentColor = color;
     this.updateStatus(`Color changed to ${color}`);
   }
@@ -593,6 +611,11 @@ class FaceTracker {
    * @param {any} results
    */
   onResults(results) {
+    // Block drawing if time is up
+    if (window.countdownController && window.countdownController.shouldBlockInputs()) {
+      return;
+    }
+    
     if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
       for (const landmarks of results.multiFaceLandmarks) {
         const leftEye = landmarks[33];
@@ -746,6 +769,26 @@ class KeybindManager {
         this.updateColorButton(color);
       });
     });
+
+    // Countdown start button
+    const startBtn = document.getElementById("countdown-start");
+    if (startBtn) {
+      startBtn.addEventListener("click", () => {
+        if (window.countdownController) {
+          window.countdownController.start(60);
+        }
+      });
+    }
+
+    // Countdown reset button
+    const resetBtn = document.getElementById("countdown-reset");
+    if (resetBtn) {
+      resetBtn.addEventListener("click", () => {
+        if (window.countdownController) {
+          window.countdownController.reset(60);
+        }
+      });
+    }
   }
 }
 
@@ -1112,6 +1155,112 @@ class TemplateManager {
   }
 }
 
+class CountdownController {
+  constructor() {
+    this.timerElement = document.getElementById("countdown-timer");
+    this.startButton = document.getElementById("countdown-start");
+    this.pensAwayOverlay = document.getElementById("pens-away-overlay");
+    this.intervalId = null;
+    this.remainingSeconds = 60;
+    this.isRunning = false;
+    this.isTimeUp = false;
+    this.updateDisplay(this.remainingSeconds);
+    this.setupDismissListeners();
+  }
+
+  format(seconds) {
+    const mm = String(Math.floor(seconds / 60)).padStart(2, "0");
+    const ss = String(seconds % 60).padStart(2, "0");
+    return `${mm}:${ss}`;
+  }
+
+  updateDisplay(seconds) {
+    if (this.timerElement) {
+      this.timerElement.textContent = this.format(seconds);
+    }
+  }
+
+  start(totalSeconds = 60) {
+    if (this.isRunning) return;
+    this.isRunning = true;
+    this.isTimeUp = false;
+    this.remainingSeconds = totalSeconds;
+    this.updateDisplay(this.remainingSeconds);
+    if (this.startButton) {
+      this.startButton.disabled = true;
+    }
+    
+    // Hide any existing pens away overlay
+    this.hidePensAway();
+
+    this.intervalId = setInterval(() => {
+      this.remainingSeconds -= 1;
+      this.updateDisplay(this.remainingSeconds);
+      if (this.remainingSeconds <= 0) {
+        this.stop();
+        this.showPensAway();
+      }
+    }, 1000);
+  }
+
+  stop() {
+    if (this.intervalId) {
+      clearInterval(this.intervalId);
+      this.intervalId = null;
+    }
+    this.isRunning = false;
+    if (this.startButton) {
+      this.startButton.disabled = false;
+    }
+  }
+
+  reset(totalSeconds = 60) {
+    this.stop();
+    this.remainingSeconds = totalSeconds;
+    this.isTimeUp = false;
+    this.updateDisplay(this.remainingSeconds);
+    this.hidePensAway();
+  }
+  
+  showPensAway() {
+    if (this.pensAwayOverlay) {
+      this.pensAwayOverlay.classList.remove("hidden");
+      this.isTimeUp = true;
+    }
+  }
+  
+  hidePensAway() {
+    if (this.pensAwayOverlay) {
+      this.pensAwayOverlay.classList.add("hidden");
+      this.isTimeUp = false;
+    }
+  }
+
+  setupDismissListeners() {
+    // Dismiss on space key
+    document.addEventListener("keydown", (e) => {
+      if (e.code === "Space" && this.isTimeUp) {
+        e.preventDefault();
+        this.hidePensAway();
+      }
+    });
+
+    // Dismiss on click anywhere on the overlay
+    if (this.pensAwayOverlay) {
+      this.pensAwayOverlay.addEventListener("click", () => {
+        if (this.isTimeUp) {
+          this.hidePensAway();
+        }
+      });
+    }
+  }
+
+  // Method to check if inputs should be blocked
+  shouldBlockInputs() {
+    return this.isTimeUp;
+  }
+}
+
 window.onload = (_) => {
   const credentialManager = new CredentialManager();
   const drawingCanvas = new CanvasDrawing("canvas");
@@ -1167,4 +1316,7 @@ window.onload = (_) => {
 
   // Ensure both canvases are sized correctly on load
   drawingCanvas.resizeCanvas();
+
+  // Countdown controller
+  window.countdownController = new CountdownController();
 };
