@@ -696,6 +696,12 @@ class KeybindManager {
     this.keybinds.set("2", () => this.setColor(COLOR_GREEN, "Green"));
     this.keybinds.set("4", () => this.setColor(COLOR_BLACK, "Black"));
 
+    // Template keybinds
+    this.keybinds.set("6", () => this.setTemplate("star"));
+    this.keybinds.set("7", () => this.setTemplate("rectangle"));
+    this.keybinds.set("8", () => this.setTemplate("circle"));
+    this.keybinds.set("9", () => this.setTemplate("parallelogram"));
+
     this.keybinds.set("ArrowUp", () => this.faceTracker.increaseSensitivity());
     this.keybinds.set("ArrowDown", () =>
       this.faceTracker.decreaseSensitivity(),
@@ -727,6 +733,15 @@ class KeybindManager {
     const targetButton = document.querySelector(`[data-color="${color}"]`);
     if (targetButton) {
       targetButton.classList.add("active");
+    }
+  }
+
+  /**
+   * @param {string} template
+   */
+  setTemplate(template) {
+    if (window.templateManager) {
+      window.templateManager.setCurrentTemplate(template);
     }
   }
 
@@ -1287,6 +1302,7 @@ window.onload = (_) => {
     templateCtx,
     "rectangle",
   );
+  window.templateManager = templateManager;
 
   drawingCanvas.resizeCanvas = () => {
     const width = window.innerWidth - 320;
