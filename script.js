@@ -11,6 +11,7 @@ const COLOR_RED = "#ff0000";
 const COLOR_GREEN = "#00ff00";
 const COLOR_CURSOR = "red";
 const COLOR_ERASE = "rgba(0,0,0,1)";
+const COLOR_ERASER_CURSOR = "rgba(255,255,255,0.75)";
 
 class KalmanFilter {
   /**
@@ -341,6 +342,8 @@ class CanvasDrawing {
     this.undoStack = [];
     this.redoStack = [];
     this.cursor = this.createCursor();
+    this.brushSize = 2;
+    this.eraserSize = 30;
 
     this.resizeCanvas();
     this.setupEventListeners();
@@ -358,6 +361,8 @@ class CanvasDrawing {
     cursor.style.position = "fixed";
     cursor.style.pointerEvents = "none";
     cursor.style.zIndex = "1000";
+    cursor.style.border = "1px solid rgba(0,0,0,0.25)";
+    cursor.style.boxSizing = "border-box";
     document.body.appendChild(cursor);
     return cursor;
   }
@@ -415,11 +420,11 @@ class CanvasDrawing {
 
       if (this.isErasing) {
         this.ctx.globalCompositeOperation = "destination-out";
-        this.ctx.lineWidth = 30;
+        this.ctx.lineWidth = this.eraserSize;
         this.ctx.strokeStyle = COLOR_ERASE;
       } else {
         this.ctx.globalCompositeOperation = "source-over";
-        this.ctx.lineWidth = 2;
+        this.ctx.lineWidth = this.brushSize;
         this.ctx.strokeStyle = this.currentColor;
       }
 
@@ -441,8 +446,15 @@ class CanvasDrawing {
     const scaleY = rect.height / this.canvas.height;
     const pageX = rect.left + x * scaleX;
     const pageY = rect.top + y * scaleY;
-    this.cursor.style.left = pageX - this.cursor.offsetWidth / 2 + "px";
-    this.cursor.style.top = pageY - this.cursor.offsetHeight / 2 + "px";
+    const scale = (scaleX + scaleY) / 2 || 1;
+    const targetSize = this.isErasing ? this.eraserSize * scale : 10;
+    this.cursor.style.width = `${targetSize}px`;
+    this.cursor.style.height = `${targetSize}px`;
+    this.cursor.style.backgroundColor = this.isErasing
+      ? COLOR_ERASER_CURSOR
+      : COLOR_CURSOR;
+    this.cursor.style.left = pageX - targetSize / 2 + "px";
+    this.cursor.style.top = pageY - targetSize / 2 + "px";
   }
 
   startDrawing() {
