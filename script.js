@@ -11,6 +11,7 @@ const COLOR_RED = "#ff0000";
 const COLOR_GREEN = "#00ff00";
 const COLOR_CURSOR = "red";
 const COLOR_ERASE = "rgba(0,0,0,1)";
+const COLOR_ERASER_CURSOR = "rgba(255,255,255,0.75)";
 
 class KalmanFilter {
   /**
@@ -341,6 +342,8 @@ class CanvasDrawing {
     this.undoStack = [];
     this.redoStack = [];
     this.cursor = this.createCursor();
+    this.brushSize = 2;
+    this.eraserSize = 30;
 
     this.resizeCanvas();
     this.setupEventListeners();
@@ -358,6 +361,8 @@ class CanvasDrawing {
     cursor.style.position = "fixed";
     cursor.style.pointerEvents = "none";
     cursor.style.zIndex = "1000";
+    cursor.style.border = "1px solid rgba(0,0,0,0.25)";
+    cursor.style.boxSizing = "border-box";
     document.body.appendChild(cursor);
     return cursor;
   }
@@ -369,23 +374,44 @@ class CanvasDrawing {
 
   saveCanvasState() {
     this.redoStack = [];
-    this.undoStack.push(this.canvas.toDataURL());
+    try {
+      const snapshot = this.ctx.getImageData(0, 0, this.canvas.width, this.canvas.height);
+      this.undoStack.push(snapshot);
+    } catch (e) {
+      console.error("Failed to capture canvas state:", e);
+    }
     if (this.undoStack.length > 20) {
       this.undoStack.shift();
     }
   }
 
   undo() {
+    if (window.countdownController && window.countdownController.shouldBlockInputs()) {
+      return;
+    }
     if (this.undoStack.length > 0) {
-      this.redoStack.push(this.canvas.toDataURL());
+      try {
+        const current = this.ctx.getImageData(0, 0, this.canvas.width, this.canvas.height);
+        this.redoStack.push(current);
+      } catch (e) {
+        console.error("Failed to capture current state for redo:", e);
+      }
       const previousState = this.undoStack.pop();
       this.restoreCanvasState(previousState);
     }
   }
 
-  redo() {
+    redo() {
+    if (window.countdownController && window.countdownController.shouldBlockInputs()) {
+      return;
+    }
     if (this.redoStack.length > 0) {
-      this.undoStack.push(this.canvas.toDataURL());
+      try {
+        const current = this.ctx.getImageData(0, 0, this.canvas.width, this.canvas.height);
+        this.undoStack.push(current);
+      } catch (e) {
+        console.error("Failed to capture current state for undo:", e);
+      }
       const nextState = this.redoStack.pop();
       this.restoreCanvasState(nextState);
     }
@@ -394,13 +420,28 @@ class CanvasDrawing {
   /**
    * @param {string} dataURL
    */
-  restoreCanvasState(dataURL) {
-    const img = new Image();
-    img.onload = () => {
-      this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-      this.ctx.drawImage(img, 0, 0);
-    };
-    img.src = dataURL;
+  restoreCanvasState(state) {
+    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    if (state instanceof ImageData) {
+      // If dimensions match, draw directly; otherwise scale via an offscreen canvas
+      if (state.width === this.canvas.width && state.height === this.canvas.height) {
+        this.ctx.putImageData(state, 0, 0);
+      } else {
+        const off = document.createElement("canvas");
+        off.width = state.width;
+        off.height = state.height;
+        const offCtx = off.getContext("2d");
+        offCtx.putImageData(state, 0, 0);
+        this.ctx.drawImage(off, 0, 0, this.canvas.width, this.canvas.height);
+      }
+    } else if (typeof state === "string") {
+      // Backwards compatibility if any old data URLs are present
+      const img = new Image();
+      img.onload = () => {
+        this.ctx.drawImage(img, 0, 0);
+      };
+      img.src = state;
+    }
   }
 
   /**
@@ -415,11 +456,11 @@ class CanvasDrawing {
 
       if (this.isErasing) {
         this.ctx.globalCompositeOperation = "destination-out";
-        this.ctx.lineWidth = 30;
+        this.ctx.lineWidth = this.eraserSize;
         this.ctx.strokeStyle = COLOR_ERASE;
       } else {
         this.ctx.globalCompositeOperation = "source-over";
-        this.ctx.lineWidth = 2;
+        this.ctx.lineWidth = this.brushSize;
         this.ctx.strokeStyle = this.currentColor;
       }
 
@@ -441,11 +482,21 @@ class CanvasDrawing {
     const scaleY = rect.height / this.canvas.height;
     const pageX = rect.left + x * scaleX;
     const pageY = rect.top + y * scaleY;
-    this.cursor.style.left = pageX - this.cursor.offsetWidth / 2 + "px";
-    this.cursor.style.top = pageY - this.cursor.offsetHeight / 2 + "px";
+    const scale = (scaleX + scaleY) / 2 || 1;
+    const targetSize = this.isErasing ? this.eraserSize * scale : 10;
+    this.cursor.style.width = `${targetSize}px`;
+    this.cursor.style.height = `${targetSize}px`;
+    this.cursor.style.backgroundColor = this.isErasing
+      ? COLOR_ERASER_CURSOR
+      : COLOR_CURSOR;
+    this.cursor.style.left = pageX - targetSize / 2 + "px";
+    this.cursor.style.top = pageY - targetSize / 2 + "px";
   }
 
   startDrawing() {
+    if (window.countdownController && window.countdownController.shouldBlockInputs()) {
+      return;
+    }
     if (!this.isDrawing) {
       this.saveCanvasState();
     }
@@ -459,6 +510,9 @@ class CanvasDrawing {
   }
 
   toggleEraser() {
+    if (window.countdownController && window.countdownController.shouldBlockInputs()) {
+      return;
+    }
     this.isErasing = !this.isErasing;
     if (this.isErasing) {
       if (!this.isDrawing) {
@@ -473,6 +527,9 @@ class CanvasDrawing {
   }
 
   clearCanvas() {
+    if (window.countdownController && window.countdownController.shouldBlockInputs()) {
+      return;
+    }
     this.saveCanvasState();
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
     this.updateStatus("Canvas Cleared");
@@ -480,10 +537,14 @@ class CanvasDrawing {
 
   /**
    * @param {string} color
+   * @param {string} name
    */
-  setColor(color) {
+  setColor(color, name = color) {
+    if (window.countdownController && window.countdownController.shouldBlockInputs()) {
+      return;
+    }
     this.currentColor = color;
-    this.updateStatus(`Color changed to ${color}`);
+    this.updateStatus(`Color changed to ${name}`);
   }
 
   /**
@@ -551,6 +612,11 @@ class FaceTracker {
    * @param {any} results
    */
   onResults(results) {
+    // Block drawing if time is up
+    if (window.countdownController && window.countdownController.shouldBlockInputs()) {
+      return;
+    }
+    
     if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
       for (const landmarks of results.multiFaceLandmarks) {
         const leftEye = landmarks[33];
@@ -631,6 +697,12 @@ class KeybindManager {
     this.keybinds.set("2", () => this.setColor(COLOR_GREEN, "Green"));
     this.keybinds.set("4", () => this.setColor(COLOR_BLACK, "Black"));
 
+    // Template keybinds
+    this.keybinds.set("6", () => this.setTemplate("star"));
+    this.keybinds.set("7", () => this.setTemplate("rectangle"));
+    this.keybinds.set("8", () => this.setTemplate("circle"));
+    this.keybinds.set("9", () => this.setTemplate("parallelogram"));
+
     this.keybinds.set("ArrowUp", () => this.faceTracker.increaseSensitivity());
     this.keybinds.set("ArrowDown", () =>
       this.faceTracker.decreaseSensitivity(),
@@ -648,7 +720,7 @@ class KeybindManager {
    * @param {string} name
    */
   setColor(color, name) {
-    this.drawingCanvas.setColor(color);
+    this.drawingCanvas.setColor(color, name);
     this.updateColorButton(color);
   }
 
@@ -662,6 +734,15 @@ class KeybindManager {
     const targetButton = document.querySelector(`[data-color="${color}"]`);
     if (targetButton) {
       targetButton.classList.add("active");
+    }
+  }
+
+  /**
+   * @param {string} template
+   */
+  setTemplate(template) {
+    if (window.templateManager) {
+      window.templateManager.setCurrentTemplate(template);
     }
   }
 
@@ -704,6 +785,26 @@ class KeybindManager {
         this.updateColorButton(color);
       });
     });
+
+    // Countdown start button
+    const startBtn = document.getElementById("countdown-start");
+    if (startBtn) {
+      startBtn.addEventListener("click", () => {
+        if (window.countdownController) {
+          window.countdownController.start(60);
+        }
+      });
+    }
+
+    // Countdown reset button
+    const resetBtn = document.getElementById("countdown-reset");
+    if (resetBtn) {
+      resetBtn.addEventListener("click", () => {
+        if (window.countdownController) {
+          window.countdownController.reset(60);
+        }
+      });
+    }
   }
 }
 
@@ -1070,9 +1171,117 @@ class TemplateManager {
   }
 }
 
+class CountdownController {
+  constructor() {
+    this.timerElement = document.getElementById("countdown-timer");
+    this.startButton = document.getElementById("countdown-start");
+    this.pensAwayOverlay = document.getElementById("pens-away-overlay");
+    this.intervalId = null;
+    this.remainingSeconds = 60;
+    this.isRunning = false;
+    this.isTimeUp = false;
+    this.updateDisplay(this.remainingSeconds);
+    this.setupDismissListeners();
+  }
+
+  format(seconds) {
+    const mm = String(Math.floor(seconds / 60)).padStart(2, "0");
+    const ss = String(seconds % 60).padStart(2, "0");
+    return `${mm}:${ss}`;
+  }
+
+  updateDisplay(seconds) {
+    if (this.timerElement) {
+      this.timerElement.textContent = this.format(seconds);
+    }
+  }
+
+  start(totalSeconds = 60) {
+    if (this.isRunning) return;
+    this.isRunning = true;
+    this.isTimeUp = false;
+    this.remainingSeconds = totalSeconds;
+    this.updateDisplay(this.remainingSeconds);
+    if (this.startButton) {
+      this.startButton.disabled = true;
+    }
+    
+    // Hide any existing pens away overlay
+    this.hidePensAway();
+
+    this.intervalId = setInterval(() => {
+      this.remainingSeconds -= 1;
+      this.updateDisplay(this.remainingSeconds);
+      if (this.remainingSeconds <= 0) {
+        this.stop();
+        this.showPensAway();
+      }
+    }, 1000);
+  }
+
+  stop() {
+    if (this.intervalId) {
+      clearInterval(this.intervalId);
+      this.intervalId = null;
+    }
+    this.isRunning = false;
+    if (this.startButton) {
+      this.startButton.disabled = false;
+    }
+  }
+
+  reset(totalSeconds = 60) {
+    this.stop();
+    this.remainingSeconds = totalSeconds;
+    this.isTimeUp = false;
+    this.updateDisplay(this.remainingSeconds);
+    this.hidePensAway();
+  }
+  
+  showPensAway() {
+    if (this.pensAwayOverlay) {
+      this.pensAwayOverlay.classList.remove("hidden");
+      this.isTimeUp = true;
+    }
+  }
+  
+  hidePensAway() {
+    if (this.pensAwayOverlay) {
+      this.pensAwayOverlay.classList.add("hidden");
+      this.isTimeUp = false;
+    }
+  }
+
+  setupDismissListeners() {
+    // Dismiss on space key
+    document.addEventListener("keydown", (e) => {
+      if (e.code === "Space" && this.isTimeUp) {
+        e.preventDefault();
+        this.hidePensAway();
+      }
+    });
+
+    // Dismiss on click anywhere on the overlay
+    if (this.pensAwayOverlay) {
+      this.pensAwayOverlay.addEventListener("click", () => {
+        if (this.isTimeUp) {
+          this.hidePensAway();
+        }
+      });
+    }
+  }
+
+  // Method to check if inputs should be blocked
+  shouldBlockInputs() {
+    return this.isTimeUp;
+  }
+}
+
 window.onload = (_) => {
   const credentialManager = new CredentialManager();
   const drawingCanvas = new CanvasDrawing("canvas");
+  const templateCanvas = document.getElementById("template-canvas");
+  const templateCtx = templateCanvas.getContext("2d");
   const faceTracker = new FaceTracker(
     "input-video",
     "output-canvas",
@@ -1090,13 +1299,41 @@ window.onload = (_) => {
     headsetController.initialize();
   });
   const templateManager = new TemplateManager(
-    drawingCanvas.canvas,
-    drawingCanvas.ctx,
+    templateCanvas,
+    templateCtx,
     "rectangle",
   );
+  window.templateManager = templateManager;
+
   drawingCanvas.resizeCanvas = () => {
-    this.canvas.width = window.innerWidth - 320;
-    this.canvas.height = window.innerHeight;
+    const width = window.innerWidth - 320;
+    const height = window.innerHeight;
+    // When the canvas size changes, content is cleared. Capture state first.
+    let currentState = null;
+    try {
+      currentState = drawingCanvas.ctx.getImageData(0, 0, drawingCanvas.canvas.width, drawingCanvas.canvas.height);
+    } catch { /* ignore */ }
+
+    drawingCanvas.canvas.width = width;
+    drawingCanvas.canvas.height = height;
+    templateCanvas.width = width;
+    templateCanvas.height = height;
     templateManager.onResize();
+
+    if (currentState) {
+      // Restore previous drawing scaled to new size
+      const off = document.createElement("canvas");
+      off.width = currentState.width;
+      off.height = currentState.height;
+      const offCtx = off.getContext("2d");
+      offCtx.putImageData(currentState, 0, 0);
+      drawingCanvas.ctx.drawImage(off, 0, 0, width, height);
+    }
   };
+
+  // Ensure both canvases are sized correctly on load
+  drawingCanvas.resizeCanvas();
+
+  // Countdown controller
+  window.countdownController = new CountdownController();
 };
