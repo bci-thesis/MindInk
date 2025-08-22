@@ -90,6 +90,142 @@ class CredentialManager {
   }
 }
 
+class AccuracyCalculator {
+  constructor() {
+    this.drawnPoints = [];
+    this.templatePoints = [];
+    this.currentAccuracy = 0;
+    this.totalDistance = 0;
+    this.isTracking = false;
+  }
+
+  startTracking() {
+    this.isTracking = true;
+    this.drawnPoints = [];
+    this.totalDistance = 0;
+    this.updateDisplay();
+  }
+
+  stopTracking() {
+    this.isTracking = false;
+    if (this.drawnPoints.length > 0 && this.templatePoints.length > 0) {
+      this.calculateAccuracy();
+    }
+  }
+
+  addDrawnPoint(x, y) {
+    if (this.isTracking) {
+      this.drawnPoints.push({ x, y });
+      if (this.templatePoints.length > 0) {
+        this.calculateAccuracy();
+      }
+    }
+  }
+
+  setTemplatePoints(points) {
+    this.templatePoints = points;
+    if (this.drawnPoints.length > 0) {
+      this.calculateAccuracy();
+    }
+  }
+
+  calculateAccuracy() {
+    if (this.drawnPoints.length === 0 || this.templatePoints.length === 0) {
+      this.currentAccuracy = 0;
+      this.totalDistance = 0;
+      this.updateDisplay();
+      return;
+    }
+
+    let totalDistance = 0;
+
+    // For each drawn point, find the closest point on the template
+    for (const drawnPoint of this.drawnPoints) {
+      let minDistance = Infinity;
+
+      // Check distance to each template point
+      for (const templatePoint of this.templatePoints) {
+        const distance = Math.sqrt(
+          Math.pow(drawnPoint.x - templatePoint.x, 2) +
+            Math.pow(drawnPoint.y - templatePoint.y, 2),
+        );
+        minDistance = Math.min(minDistance, distance);
+      }
+
+      // Also check distance to line segments between consecutive template points
+      for (let i = 0; i < this.templatePoints.length; i++) {
+        const p1 = this.templatePoints[i];
+        const p2 = this.templatePoints[(i + 1) % this.templatePoints.length];
+        const lineDistance = this.distanceToLineSegment(drawnPoint, p1, p2);
+        minDistance = Math.min(minDistance, lineDistance);
+      }
+
+      totalDistance += minDistance;
+    }
+
+    this.totalDistance = totalDistance;
+    const averageDistance = totalDistance / this.drawnPoints.length;
+
+    // Convert distance to accuracy score (0-100)
+    // Assume perfect accuracy when average distance is 0, and 0% when > 100 pixels
+    const maxDistance = 100;
+    this.currentAccuracy = Math.max(
+      0,
+      Math.min(100, 100 * (1 - averageDistance / maxDistance)),
+    );
+
+    this.updateDisplay();
+  }
+
+  distanceToLineSegment(point, lineStart, lineEnd) {
+    const A = point.x - lineStart.x;
+    const B = point.y - lineStart.y;
+    const C = lineEnd.x - lineStart.x;
+    const D = lineEnd.y - lineStart.y;
+
+    const dot = A * C + B * D;
+    const lenSq = C * C + D * D;
+
+    if (lenSq === 0) {
+      // Line segment is a point
+      return Math.sqrt(A * A + B * B);
+    }
+
+    const param = dot / lenSq;
+    let xx, yy;
+
+    if (param < 0) {
+      xx = lineStart.x;
+      yy = lineStart.y;
+    } else if (param > 1) {
+      xx = lineEnd.x;
+      yy = lineEnd.y;
+    } else {
+      xx = lineStart.x + param * C;
+      yy = lineStart.y + param * D;
+    }
+
+    const dx = point.x - xx;
+    const dy = point.y - yy;
+    return Math.sqrt(dx * dx + dy * dy);
+  }
+
+  updateDisplay() {
+    const scoreElement = document.getElementById("accuracy-score");
+
+    if (scoreElement) {
+      scoreElement.textContent = `Score: ${this.currentAccuracy.toFixed(1)}%`;
+    }
+  }
+
+  reset() {
+    this.drawnPoints = [];
+    this.currentAccuracy = 0;
+    this.totalDistance = 0;
+    this.updateDisplay();
+  }
+}
+
 class LoginManager {
   /**
    * @param {CredentialManager} credentialManager
@@ -341,6 +477,7 @@ class CanvasDrawing {
     this.undoStack = [];
     this.redoStack = [];
     this.cursor = this.createCursor();
+    this.accuracyCalculator = null; // Will be set externally
 
     this.resizeCanvas();
     this.setupEventListeners();
@@ -421,6 +558,11 @@ class CanvasDrawing {
         this.ctx.globalCompositeOperation = "source-over";
         this.ctx.lineWidth = 2;
         this.ctx.strokeStyle = this.currentColor;
+
+        // Track drawn points for accuracy calculation (only when not erasing)
+        if (this.accuracyCalculator) {
+          this.accuracyCalculator.addDrawnPoint(x, y);
+        }
       }
 
       this.ctx.stroke();
@@ -450,11 +592,17 @@ class CanvasDrawing {
       this.saveCanvasState();
     }
     this.isDrawing = true;
+    if (this.accuracyCalculator && !this.isErasing) {
+      this.accuracyCalculator.startTracking();
+    }
     this.updateStatus("Drawing");
   }
 
   stopDrawing() {
     this.isDrawing = false;
+    if (this.accuracyCalculator && !this.isErasing) {
+      this.accuracyCalculator.stopTracking();
+    }
     this.updateStatus("Stopped");
   }
 
@@ -475,6 +623,9 @@ class CanvasDrawing {
   clearCanvas() {
     this.saveCanvasState();
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    if (this.accuracyCalculator) {
+      this.accuracyCalculator.reset();
+    }
     this.updateStatus("Canvas Cleared");
   }
 
@@ -609,10 +760,12 @@ class KeybindManager {
   /**
    * @param {CanvasDrawing} drawingCanvas
    * @param {FaceTracker} faceTracker
+   // * @param {MenuNavigator} menuNavigator
    */
   constructor(drawingCanvas, faceTracker) {
     this.drawingCanvas = drawingCanvas;
     this.faceTracker = faceTracker;
+    // this.menuNavigator = this.menuNavigator;
     this.keybinds = new Map();
     this.setupKeybinds();
     this.setupEventListeners();
@@ -636,11 +789,8 @@ class KeybindManager {
       this.faceTracker.decreaseSensitivity(),
     );
 
-    this.keybinds.set("Escape", () => {
-      if (window.menuNavigator) {
-        window.menuNavigator.clearSelection();
-      }
-    });
+    this.keybinds.set("Escape", () => window.menuNavigator.clearSelection());
+    this.keybinds.set("a", () => window.menuNavigator.handleCommand("push"));
   }
 
   /**
@@ -934,6 +1084,7 @@ class TemplateManager {
     this.templateButtons = Array.from(
       document.querySelectorAll(".template-btn"),
     );
+    this.accuracyCalculator = null; // Will be set externally
     this.setupTemplateButtons();
     this.updateActiveButton();
     this.drawCurrentTemplate();
@@ -953,6 +1104,12 @@ class TemplateManager {
       this.currentTemplate = template;
       this.updateActiveButton();
       this.drawCurrentTemplate();
+      this.updateTemplatePoints();
+
+      // Reset accuracy when changing templates
+      if (this.accuracyCalculator) {
+        this.accuracyCalculator.reset();
+      }
     }
   }
 
@@ -980,6 +1137,12 @@ class TemplateManager {
       case "parallelogram":
         this.drawParallelogramOutline();
         break;
+    }
+    this.updateTemplatePoints();
+
+    // Reset accuracy when template is redrawn
+    if (this.accuracyCalculator) {
+      this.accuracyCalculator.reset();
     }
   }
 
@@ -1067,20 +1230,108 @@ class TemplateManager {
 
   onResize() {
     this.drawCurrentTemplate();
+    // Note: accuracy reset is handled by drawCurrentTemplate()
+  }
+
+  updateTemplatePoints() {
+    if (!this.accuracyCalculator) return;
+
+    const points = this.getTemplatePoints();
+    this.accuracyCalculator.setTemplatePoints(points);
+  }
+
+  getTemplatePoints() {
+    const { canvas } = this;
+    const centerX = canvas.width / 2;
+    const centerY = canvas.height / 2;
+
+    switch (this.currentTemplate) {
+      case "star":
+        return this.getStarPoints(centerX, centerY);
+      case "rectangle":
+        return this.getRectanglePoints(centerX, centerY);
+      case "circle":
+        return this.getCirclePoints(centerX, centerY);
+      case "parallelogram":
+        return this.getParallelogramPoints(centerX, centerY);
+      default:
+        return [];
+    }
+  }
+
+  getStarPoints(centerX, centerY) {
+    const outerRadius = Math.min(this.canvas.width, this.canvas.height) * 0.25;
+    const innerRadius = outerRadius * 0.4;
+    const spikes = 5;
+    const points = [];
+
+    for (let i = 0; i < spikes * 2; i++) {
+      const angle = (i * Math.PI) / spikes;
+      const radius = i % 2 === 0 ? outerRadius : innerRadius;
+      const x = centerX + Math.cos(angle - Math.PI / 2) * radius;
+      const y = centerY + Math.sin(angle - Math.PI / 2) * radius;
+      points.push({ x, y });
+    }
+
+    return points;
+  }
+
+  getRectanglePoints(centerX, centerY) {
+    const width = Math.min(this.canvas.width, this.canvas.height) * 0.4;
+    const height = width * 0.6;
+
+    return [
+      { x: centerX - width / 2, y: centerY - height / 2 },
+      { x: centerX + width / 2, y: centerY - height / 2 },
+      { x: centerX + width / 2, y: centerY + height / 2 },
+      { x: centerX - width / 2, y: centerY + height / 2 },
+    ];
+  }
+
+  getCirclePoints(centerX, centerY) {
+    const radius = Math.min(this.canvas.width, this.canvas.height) * 0.2;
+    const points = [];
+    const numPoints = 64; // More points for smoother circle approximation
+
+    for (let i = 0; i < numPoints; i++) {
+      const angle = (i * 2 * Math.PI) / numPoints;
+      const x = centerX + Math.cos(angle) * radius;
+      const y = centerY + Math.sin(angle) * radius;
+      points.push({ x, y });
+    }
+
+    return points;
+  }
+
+  getParallelogramPoints(centerX, centerY) {
+    const width = Math.min(this.canvas.width, this.canvas.height) * 0.4;
+    const height = width * 0.5;
+    const skew = width * 0.2;
+
+    return [
+      { x: centerX - width / 2 + skew, y: centerY - height / 2 },
+      { x: centerX + width / 2 + skew, y: centerY - height / 2 },
+      { x: centerX + width / 2 - skew, y: centerY + height / 2 },
+      { x: centerX - width / 2 - skew, y: centerY + height / 2 },
+    ];
   }
 }
 
 window.onload = (_) => {
   const credentialManager = new CredentialManager();
   const drawingCanvas = new CanvasDrawing("canvas");
+  const accuracyCalculator = new AccuracyCalculator();
+
+  // Connect accuracy calculator to drawing canvas
+  drawingCanvas.accuracyCalculator = accuracyCalculator;
+
   const faceTracker = new FaceTracker(
     "input-video",
     "output-canvas",
     drawingCanvas,
   );
+  window.menuNavigator = new MenuNavigator(drawingCanvas);
   new KeybindManager(drawingCanvas, faceTracker);
-  const menuNavigator = new MenuNavigator(drawingCanvas);
-  window.menuNavigator = menuNavigator;
   const headsetController = new HeadsetController(
     drawingCanvas,
     credentialManager,
@@ -1094,9 +1345,14 @@ window.onload = (_) => {
     drawingCanvas.ctx,
     "rectangle",
   );
+
+  // Connect accuracy calculator to template manager
+  templateManager.accuracyCalculator = accuracyCalculator;
+  templateManager.updateTemplatePoints();
+
   drawingCanvas.resizeCanvas = () => {
-    this.canvas.width = window.innerWidth - 320;
-    this.canvas.height = window.innerHeight;
+    drawingCanvas.canvas.width = window.innerWidth - 320;
+    drawingCanvas.canvas.height = window.innerHeight;
     templateManager.onResize();
   };
 };

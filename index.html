@@ -1,119 +1,156 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Eye-Tracking Paint App</title>
-    <link rel="stylesheet" href="styles.css" />
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils"></script>
-    <script src="script.js"></script>
-  </head>
-  <body>
-    <!-- Login Overlay -->
-    <div id="login-overlay" class="login-overlay">
-      <div class="login-container">
-        <h2>Enter Cortex Credentials</h2>
-        <form id="login-form">
-          <div class="form-group">
-            <label for="client-id">Client ID:</label>
-            <input type="text" id="client-id" name="clientId" required />
-          </div>
-          <div class="form-group">
-            <label for="client-secret">Client Secret:</label>
-            <input
-              type="password"
-              id="client-secret"
-              name="clientSecret"
-              required
-            />
-          </div>
-          <div class="form-actions">
-            <button type="submit" class="login-btn">Connect</button>
-            <button type="button" id="clear-credentials" class="clear-btn">
-              Clear Stored Credentials
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-
-    <div id="controls">
-      <!-- Drawing Controls -->
-      <div class="menu-section" id="drawing-controls">
-        <h3>Drawing Controls</h3>
-        <div class="button-grid">
-          <button id="startBtn">Start Drawing (s)</button>
-          <button id="stopBtn">Stop Drawing (x)</button>
-          <button id="eraserBtn">Toggle Eraser (e)</button>
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Eye-Tracking Paint App</title>
+        <link rel="stylesheet" href="styles.css" />
+        <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh"></script>
+        <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils"></script>
+        <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils"></script>
+        <script src="script.js"></script>
+    </head>
+    <body>
+        <!-- Login Overlay -->
+        <div id="login-overlay" class="login-overlay">
+            <div class="login-container">
+                <h2>Enter Cortex Credentials</h2>
+                <form id="login-form">
+                    <div class="form-group">
+                        <label for="client-id">Client ID:</label>
+                        <input
+                            type="text"
+                            id="client-id"
+                            name="clientId"
+                            required
+                        />
+                    </div>
+                    <div class="form-group">
+                        <label for="client-secret">Client Secret:</label>
+                        <input
+                            type="password"
+                            id="client-secret"
+                            name="clientSecret"
+                            required
+                        />
+                    </div>
+                    <div class="form-actions">
+                        <button type="submit" class="login-btn">Connect</button>
+                        <button
+                            type="button"
+                            id="clear-credentials"
+                            class="clear-btn"
+                        >
+                            Clear Stored Credentials
+                        </button>
+                    </div>
+                </form>
+            </div>
         </div>
-      </div>
 
-      <!-- Edit Controls -->
-      <div class="menu-section" id="edit-controls">
-        <h3>Edit Controls</h3>
-        <div class="button-grid">
-          <button id="undoBtn">Undo ↶ (z)</button>
-          <button id="redoBtn">Redo ↷ (y)</button>
-          <button id="clearBtn">Clear Canvas (c)</button>
+        <div id="controls">
+            <!-- Drawing Controls -->
+            <div class="menu-section" id="drawing-controls">
+                <h3>Drawing Controls</h3>
+                <div class="button-grid">
+                    <button id="startBtn">Start Drawing (s)</button>
+                    <button id="stopBtn">Stop Drawing (x)</button>
+                    <button id="eraserBtn">Toggle Eraser (e)</button>
+                </div>
+            </div>
+
+            <!-- Edit Controls -->
+            <div class="menu-section" id="edit-controls">
+                <h3>Edit Controls</h3>
+                <div class="button-grid">
+                    <button id="undoBtn">Undo ↶ (z)</button>
+                    <button id="redoBtn">Redo ↷ (y)</button>
+                    <button id="clearBtn">Clear Canvas (c)</button>
+                </div>
+            </div>
+
+            <!-- Color Controls -->
+            <div class="menu-section" id="color-controls">
+                <h3>Colours</h3>
+                <div class="color-grid">
+                    <button
+                        id="redColor"
+                        class="color-btn"
+                        data-color="#ff0000"
+                    >
+                        Red (1)
+                    </button>
+                    <button
+                        id="greenColor"
+                        class="color-btn"
+                        data-color="#00ff00"
+                    >
+                        Green (2)
+                    </button>
+                    <!--<button id="blueColor" class="color-btn" data-color="#0000ff">Blue (3)</button>-->
+                    <button
+                        id="blackColor"
+                        class="color-btn"
+                        data-color="#000000"
+                    >
+                        Black (4)
+                    </button>
+                </div>
+            </div>
+
+            <!-- Status -->
+            <div id="status">Status: Ready</div>
+
+            <!-- Accuracy Metrics -->
+            <div class="menu-section" id="accuracy-metrics">
+                <h3>Accuracy</h3>
+                <div id="accuracy-display">
+                    <div id="accuracy-score">Score: --</div>
+                </div>
+            </div>
+
+            <!-- Camera -->
+            <div id="camera-container">
+                <video id="input-video" playsinline></video>
+                <canvas id="output-canvas"></canvas>
+            </div>
         </div>
-      </div>
 
-      <!-- Color Controls -->
-      <div class="menu-section" id="color-controls">
-        <h3>Colours</h3>
-        <div class="color-grid">
-          <button id="redColor" class="color-btn" data-color="#ff0000">
-            Red (1)
-          </button>
-          <button id="greenColor" class="color-btn" data-color="#00ff00">
-            Green (2)
-          </button>
-          <!--<button id="blueColor" class="color-btn" data-color="#0000ff">Blue (3)</button>-->
-          <button id="blackColor" class="color-btn" data-color="#000000">
-            Black (4)
-          </button>
+        <!-- Templates Panel (Right Side) -->
+        <div id="templates-panel">
+            <h3>Templates</h3>
+            <div class="template-list">
+                <button
+                    id="starTemplate"
+                    class="template-btn"
+                    data-template="star"
+                >
+                    Star
+                </button>
+                <button
+                    id="rectangleTemplate"
+                    class="template-btn active"
+                    data-template="rectangle"
+                >
+                    Rectangle
+                </button>
+                <button
+                    id="circleTemplate"
+                    class="template-btn"
+                    data-template="circle"
+                >
+                    Circle
+                </button>
+                <button
+                    id="parallelogramTemplate"
+                    class="template-btn"
+                    data-template="parallelogram"
+                >
+                    Parallelogram
+                </button>
+            </div>
         </div>
-      </div>
 
-      <!-- Status -->
-      <div id="status">Status: Ready</div>
-
-      <!-- Camera -->
-      <div id="camera-container">
-        <video id="input-video" playsinline></video>
-        <canvas id="output-canvas"></canvas>
-      </div>
-    </div>
-
-    <!-- Templates Panel (Right Side) -->
-    <div id="templates-panel">
-      <h3>Templates</h3>
-      <div class="template-list">
-        <button id="starTemplate" class="template-btn" data-template="star">
-          Star
-        </button>
-        <button
-          id="rectangleTemplate"
-          class="template-btn active"
-          data-template="rectangle"
-        >
-          Rectangle
-        </button>
-        <button id="circleTemplate" class="template-btn" data-template="circle">
-          Circle
-        </button>
-        <button
-          id="parallelogramTemplate"
-          class="template-btn"
-          data-template="parallelogram"
-        >
-          Parallelogram
-        </button>
-      </div>
-    </div>
-
-    <canvas id="canvas"></canvas>
-  </body>
+        <canvas id="canvas"></canvas>
+    </body>
 </html>
