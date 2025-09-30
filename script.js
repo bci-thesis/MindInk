@@ -576,6 +576,14 @@ class FaceTracker {
     this.kalmanFilterX = new KalmanFilter();
     this.kalmanFilterY = new KalmanFilter();
 
+    // Smoothing state to avoid cursor spikes
+    this.smoothedOffsetX = 0;
+    this.smoothedOffsetY = 0;
+    this.prevCanvasX = null;
+    this.prevCanvasY = null;
+    this.emaAlpha = 0.25; // 0..1, higher = more responsive
+    this.maxStepFraction = 0.06; // max fraction of canvas per frame
+
     this.setupFaceMesh();
     this.setupCamera();
   }
@@ -632,10 +640,51 @@ class FaceTracker {
 
         const centerX = this.drawingCanvas.canvas.width / 2;
         const centerY = this.drawingCanvas.canvas.height / 2;
-        const offsetX = (this.eyeX - 0.5) * this.scalingFactor;
-        const offsetY = (this.eyeY - 0.5) * this.scalingFactor;
-        const canvasX = centerX - offsetX * this.drawingCanvas.canvas.width;
-        const canvasY = centerY + offsetY * this.drawingCanvas.canvas.height;
+
+        // Compute raw offsets from center (-0.5..0.5)
+        const eyeOffsetX = this.eyeX - 0.5;
+        const eyeOffsetY = this.eyeY - 0.5;
+
+        // Per-axis direction-specific scaling without dominance switching
+        let xScaling = this.scalingFactor;
+        let yScaling = this.scalingFactor;
+        if (this.calibrationData && this.calibrationData.directionScaling) {
+          xScaling *= eyeOffsetX < 0
+            ? (this.calibrationData.directionScaling.left || 1.0)
+            : (this.calibrationData.directionScaling.right || 1.0);
+          yScaling *= eyeOffsetY < 0
+            ? (this.calibrationData.directionScaling.up || 1.0)
+            : (this.calibrationData.directionScaling.down || 1.0);
+        }
+
+        // Offsets scaled
+        let offsetX = eyeOffsetX * xScaling;
+        let offsetY = eyeOffsetY * yScaling;
+
+        // Exponential moving average smoothing
+        this.smoothedOffsetX = this.smoothedOffsetX + this.emaAlpha * (offsetX - this.smoothedOffsetX);
+        this.smoothedOffsetY = this.smoothedOffsetY + this.emaAlpha * (offsetY - this.smoothedOffsetY);
+
+        // Convert to canvas coordinates
+        let canvasX = centerX - this.smoothedOffsetX * this.drawingCanvas.canvas.width;
+        let canvasY = centerY + this.smoothedOffsetY * this.drawingCanvas.canvas.height;
+
+        // Delta clamp to prevent spikes
+        if (this.prevCanvasX !== null && this.prevCanvasY !== null) {
+          const maxStepX = this.drawingCanvas.canvas.width * this.maxStepFraction;
+          const maxStepY = this.drawingCanvas.canvas.height * this.maxStepFraction;
+          const dx = canvasX - this.prevCanvasX;
+          const dy = canvasY - this.prevCanvasY;
+          if (Math.abs(dx) > maxStepX) {
+            canvasX = this.prevCanvasX + Math.sign(dx) * maxStepX;
+          }
+          if (Math.abs(dy) > maxStepY) {
+            canvasY = this.prevCanvasY + Math.sign(dy) * maxStepY;
+          }
+        }
+
+        this.prevCanvasX = canvasX;
+        this.prevCanvasY = canvasY;
 
         this.drawingCanvas.draw(canvasX, canvasY);
       }
@@ -711,6 +760,13 @@ class KeybindManager {
     this.keybinds.set("Escape", () => {
       if (window.menuNavigator) {
         window.menuNavigator.clearSelection();
+      }
+    });
+
+    // Calibration keybind
+    this.keybinds.set("F1", () => {
+      if (window.headCalibration) {
+        window.headCalibration.show();
       }
     });
   }
@@ -802,6 +858,16 @@ class KeybindManager {
       resetBtn.addEventListener("click", () => {
         if (window.countdownController) {
           window.countdownController.reset(60);
+        }
+      });
+    }
+
+    // Calibration button
+    const calibrationBtn = document.getElementById("calibrationBtn");
+    if (calibrationBtn) {
+      calibrationBtn.addEventListener("click", () => {
+        if (window.headCalibration) {
+          window.headCalibration.show();
         }
       });
     }
@@ -1171,6 +1237,364 @@ class TemplateManager {
   }
 }
 
+class HeadCalibration {
+  constructor(faceTracker) {
+    this.faceTracker = faceTracker;
+    this.overlay = document.getElementById("calibration-overlay");
+    this.instructionText = document.getElementById("calibration-instruction-text");
+    this.progressFill = document.getElementById("calibration-progress-fill");
+    this.timerElement = document.getElementById("calibration-timer");
+    this.statusText = document.getElementById("calibration-status-text");
+    this.startBtn = document.getElementById("start-calibration");
+    this.skipBtn = document.getElementById("skip-calibration");
+    
+    // Calibration elements
+    this.directionIndicators = document.getElementById("calibration-direction-indicators");
+    this.directionArrows = {
+      left: document.querySelector(".calibration-direction-arrow.left"),
+      right: document.querySelector(".calibration-direction-arrow.right"),
+      up: document.querySelector(".calibration-direction-arrow.up"),
+      down: document.querySelector(".calibration-direction-arrow.down")
+    };
+    
+    this.isCalibrating = false;
+    this.currentPhase = 'center';
+    this.phaseData = {
+      center: { samples: [], duration: 3000 },
+      left: { samples: [], duration: 2000 },
+      right: { samples: [], duration: 2000 },
+      up: { samples: [], duration: 2000 },
+      down: { samples: [], duration: 2000 }
+    };
+    
+    this.calibrationData = {
+      centerX: 0.5,
+      centerY: 0.5,
+      minX: 0.5,
+      maxX: 0.5,
+      minY: 0.5,
+      maxY: 0.5,
+      rangeX: 0,
+      rangeY: 0
+    };
+    
+    this.setupEventListeners();
+  }
+
+  setupEventListeners() {
+    if (this.startBtn) {
+      this.startBtn.addEventListener("click", () => this.startCalibration());
+    }
+    if (this.skipBtn) {
+      this.skipBtn.addEventListener("click", () => this.skipCalibration());
+    }
+  }
+
+  // No camera setup needed - we're tracking the cursor dot instead
+
+  show() {
+    if (this.overlay) {
+      this.overlay.classList.remove("hidden");
+      console.log("Calibration overlay shown");
+      
+      // Hide start buttons initially
+      const startButtons = document.querySelector('.calibration-start');
+      if (startButtons) {
+        startButtons.style.display = 'flex';
+      }
+      
+      // Ensure cursor is visible when calibration starts
+      setTimeout(() => {
+        if (this.faceTracker.drawingCanvas.cursor) {
+          this.faceTracker.drawingCanvas.cursor.style.display = "block";
+          this.faceTracker.drawingCanvas.cursor.style.zIndex = "9999";
+          console.log("Cursor made visible for calibration");
+        }
+      }, 100);
+    }
+  }
+
+  hide() {
+    if (this.overlay) {
+      this.overlay.classList.add("hidden");
+      console.log("Calibration overlay hidden");
+      
+      // Hide the canvas overlay
+      const canvasOverlay = document.getElementById("calibration-canvas-overlay");
+      if (canvasOverlay) {
+        canvasOverlay.style.display = "none";
+        console.log("Canvas overlay hidden");
+      }
+    }
+  }
+
+  startCalibration() {
+    this.isCalibrating = true;
+    this.currentPhase = 'left';
+    if (this.startBtn) this.startBtn.disabled = true;
+    if (this.skipBtn) this.skipBtn.disabled = true;
+    
+    // Hide start buttons
+    const startButtons = document.querySelector('.calibration-start');
+    if (startButtons) {
+      startButtons.style.display = 'none';
+    }
+    
+    // Show canvas overlay
+    const canvasOverlay = document.getElementById("calibration-canvas-overlay");
+    if (canvasOverlay) {
+      canvasOverlay.style.display = "flex";
+      console.log("Canvas overlay shown");
+    }
+    
+    // Reset all phase data
+    Object.keys(this.phaseData).forEach(phase => {
+      this.phaseData[phase].samples = [];
+    });
+    
+    // Hide direction indicators initially
+    if (this.directionIndicators) this.directionIndicators.classList.add('hidden');
+    
+    // Start with left movement
+    this.calibrateDirection('left');
+  }
+
+  skipCalibration() {
+    this.hide();
+    this.faceTracker.setScalingFactor(2.0);
+  }
+
+  // Removed calibrateCenter method - no longer needed
+
+  calibrateDirection(direction) {
+    this.currentPhase = direction;
+    if (this.directionIndicators) this.directionIndicators.classList.remove('hidden');
+    
+    // Ensure cursor remains visible during direction calibration
+    if (this.faceTracker.drawingCanvas.cursor) {
+      this.faceTracker.drawingCanvas.cursor.style.display = "block";
+      this.faceTracker.drawingCanvas.cursor.style.zIndex = "9999";
+    }
+    
+    // Show only the current direction arrow
+    Object.keys(this.directionArrows).forEach(key => {
+      if (this.directionArrows[key]) {
+        this.directionArrows[key].classList.remove('active');
+      }
+    });
+    if (this.directionArrows[direction]) {
+      this.directionArrows[direction].classList.add('active');
+    }
+    
+    const directionTexts = {
+      left: "Move your head as far LEFT as possible",
+      right: "Move your head as far RIGHT as possible", 
+      up: "Move your head as far UP as possible",
+      down: "Move your head as far DOWN as possible"
+    };
+    
+    if (this.instructionText) {
+      this.instructionText.textContent = directionTexts[direction];
+    }
+    
+    let samples = [];
+    
+    // Collect samples for 3 seconds
+    const directionInterval = setInterval(() => {
+      // Get current cursor position for calibration data
+      const cursor = this.faceTracker.drawingCanvas.cursor;
+      if (cursor && cursor.style.display !== "none") {
+        const rect = this.faceTracker.drawingCanvas.canvas.getBoundingClientRect();
+        const cursorX = parseFloat(cursor.style.left) + parseFloat(cursor.style.width) / 2;
+        const cursorY = parseFloat(cursor.style.top) + parseFloat(cursor.style.height) / 2;
+        
+        // Convert to normalized canvas coordinates
+        const canvasX = (cursorX - rect.left) / rect.width;
+        const canvasY = (cursorY - rect.top) / rect.height;
+        
+        samples.push({
+          x: canvasX,
+          y: canvasY
+        });
+      }
+    }, 100);
+    
+    // Stop collecting after 3 seconds
+    setTimeout(() => {
+      clearInterval(directionInterval);
+      this.phaseData[direction].samples = samples;
+      console.log(`${direction} calibration complete - samples: ${samples.length}`);
+      
+      // Wait 2 seconds before next direction
+      setTimeout(() => {
+        // Move to next direction or complete calibration
+        const directions = ['left', 'right', 'up', 'down'];
+        const currentIndex = directions.indexOf(direction);
+        
+        if (currentIndex < directions.length - 1) {
+          this.calibrateDirection(directions[currentIndex + 1]);
+        } else {
+          this.processCalibrationData();
+        }
+      }, 2000); // 2 second wait
+    }, 3000); // 3 seconds of data collection
+  }
+
+  processCalibrationData() {
+    // Hide direction indicators
+    if (this.directionIndicators) this.directionIndicators.classList.add('hidden');
+    
+    console.log(`Processing calibration data - analyzing each direction separately`);
+    
+    // Analyze each direction separately
+    const directions = ['left', 'right', 'up', 'down'];
+    const directionRanges = {};
+    const directionCenters = {};
+    
+    directions.forEach(direction => {
+      const samples = this.phaseData[direction].samples;
+      if (samples.length > 0) {
+        const values = direction === 'left' || direction === 'right' ? 
+          samples.map(s => s.x) : samples.map(s => s.y);
+        
+        const min = Math.min(...values);
+        const max = Math.max(...values);
+        const range = max - min;
+        const center = (min + max) / 2;
+        
+        directionRanges[direction] = range;
+        directionCenters[direction] = center;
+        
+        console.log(`${direction} direction: range=${range.toFixed(3)}, center=${center.toFixed(3)}`);
+      }
+    });
+    
+    // Calculate adaptive scaling factors for each direction
+    const targetRange = 0.4; // Target 40% of canvas for full movement
+    const scalingFactors = {};
+    
+    directions.forEach(direction => {
+      const range = directionRanges[direction];
+      if (range > 0) {
+        // If user can reach close to full canvas (0.8+), keep sensitivity normal
+        // If user can't reach full canvas, increase sensitivity
+        if (range >= 0.8) {
+          scalingFactors[direction] = 1.0; // Perfect range, no adjustment needed
+        } else {
+          // Increase sensitivity based on how much they're missing
+          const missingRange = 0.8 - range;
+          const boostFactor = 1 + (missingRange * 2); // Boost up to 2x for very limited range
+          scalingFactors[direction] = Math.min(boostFactor, 3.0); // Cap at 3x boost
+        }
+      } else {
+        scalingFactors[direction] = 2.0; // Default if no data
+      }
+      
+      console.log(`${direction} scaling factor: ${scalingFactors[direction].toFixed(2)}`);
+    });
+    
+    // Calculate overall scaling factor (average of all directions)
+    const avgScalingFactor = Object.values(scalingFactors).reduce((sum, factor) => sum + factor, 0) / directions.length;
+    
+    // Store individual direction data for the face tracker
+    this.calibrationData.directionScaling = scalingFactors;
+    this.calibrationData.directionRanges = directionRanges;
+    this.calibrationData.directionCenters = directionCenters;
+    
+    // Calculate overall ranges for display
+    const allSamples = [];
+    Object.keys(this.phaseData).forEach(phase => {
+      if (phase !== 'center') {
+        allSamples.push(...this.phaseData[phase].samples);
+      }
+    });
+    
+    if (allSamples.length > 0) {
+      const xValues = allSamples.map(s => s.x);
+      const yValues = allSamples.map(s => s.y);
+      
+      this.calibrationData.minX = Math.min(...xValues);
+      this.calibrationData.maxX = Math.max(...xValues);
+      this.calibrationData.minY = Math.min(...yValues);
+      this.calibrationData.maxY = Math.max(...yValues);
+      
+      this.calibrationData.rangeX = this.calibrationData.maxX - this.calibrationData.minX;
+      this.calibrationData.rangeY = this.calibrationData.maxY - this.calibrationData.minY;
+      
+      this.calibrationData.centerX = (this.calibrationData.minX + this.calibrationData.maxX) / 2;
+      this.calibrationData.centerY = (this.calibrationData.minY + this.calibrationData.maxY) / 2;
+    }
+    
+    this.calibrationData.scalingFactor = avgScalingFactor;
+    
+    console.log(`Overall scaling factor: ${this.calibrationData.scalingFactor.toFixed(2)}`);
+    console.log(`Direction-specific scaling:`, scalingFactors);
+    
+    this.calibrationComplete();
+  }
+
+  calibrationComplete() {
+    // Show success state
+    if (this.statusText) {
+      this.statusText.textContent = `Calibration complete! Your movement range: ${(this.calibrationData.rangeX * 100).toFixed(1)}% x ${(this.calibrationData.rangeY * 100).toFixed(1)}%`;
+    }
+    if (this.instructionText) {
+      this.instructionText.textContent = `Optimal sensitivity set to ${this.calibrationData.scalingFactor.toFixed(1)}x. You can adjust this later with the arrow keys.`;
+    }
+    if (this.timerElement) this.timerElement.textContent = "✓";
+    if (this.progressFill) this.progressFill.style.width = "100%";
+    
+    // Apply calibration to face tracker
+    this.faceTracker.setScalingFactor(this.calibrationData.scalingFactor);
+    this.faceTracker.calibrationData = this.calibrationData;
+    
+    // Store calibration data
+    this.saveCalibrationData();
+    
+    setTimeout(() => {
+      this.hide();
+      this.isCalibrating = false;
+    }, 3000);
+  }
+
+  calibrationFailed() {
+    // Reset UI elements
+    if (this.directionIndicators) this.directionIndicators.classList.add('hidden');
+    
+    if (this.statusText) {
+      this.statusText.textContent = "Calibration failed. Using default settings.";
+    }
+    if (this.instructionText) {
+      this.instructionText.textContent = "You can adjust sensitivity later with the arrow keys.";
+    }
+    if (this.timerElement) this.timerElement.textContent = "!";
+    
+    setTimeout(() => {
+      this.hide();
+      this.isCalibrating = false;
+    }, 2000);
+  }
+
+  saveCalibrationData() {
+    localStorage.setItem('headCalibration', JSON.stringify(this.calibrationData));
+  }
+
+  loadCalibrationData() {
+    const stored = localStorage.getItem('headCalibration');
+    if (stored) {
+      try {
+        this.calibrationData = JSON.parse(stored);
+        this.faceTracker.setScalingFactor(this.calibrationData.scalingFactor);
+        this.faceTracker.calibrationData = this.calibrationData;
+        return true;
+      } catch (e) {
+        console.error("Failed to load calibration data:", e);
+      }
+    }
+    return false;
+  }
+}
+
 class CountdownController {
   constructor() {
     this.timerElement = document.getElementById("countdown-timer");
@@ -1280,6 +1704,7 @@ class CountdownController {
 window.onload = (_) => {
   const credentialManager = new CredentialManager();
   const drawingCanvas = new CanvasDrawing("canvas");
+  window.drawingCanvas = drawingCanvas; // Make globally accessible
   const templateCanvas = document.getElementById("template-canvas");
   const templateCtx = templateCanvas.getContext("2d");
   const faceTracker = new FaceTracker(
@@ -1287,6 +1712,12 @@ window.onload = (_) => {
     "output-canvas",
     drawingCanvas,
   );
+  window.faceTracker = faceTracker; // Make globally accessible
+  
+  // Initialize calibration system
+  const headCalibration = new HeadCalibration(faceTracker);
+  window.headCalibration = headCalibration;
+  
   new KeybindManager(drawingCanvas, faceTracker);
   const menuNavigator = new MenuNavigator(drawingCanvas);
   window.menuNavigator = menuNavigator;
@@ -1297,7 +1728,23 @@ window.onload = (_) => {
   );
   new LoginManager(credentialManager, () => {
     headsetController.initialize();
+    // Show calibration after successful login
+    setTimeout(() => {
+      if (!headCalibration.loadCalibrationData()) {
+        headCalibration.show();
+      }
+    }, 1000);
   });
+  
+  // Also show calibration if no credentials are stored
+  setTimeout(() => {
+    if (!credentialManager.hasCredentials()) {
+      if (!headCalibration.loadCalibrationData()) {
+        headCalibration.show();
+      }
+    }
+  }, 2000);
+  
   const templateManager = new TemplateManager(
     templateCanvas,
     templateCtx,

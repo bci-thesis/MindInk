@@ -476,3 +476,212 @@ button {
    40% { transform: translateY(-10px); }
    60% { transform: translateY(-5px); }
  }
+
+/* Calibration Overlay */
+.calibration-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.9);
+  z-index: 2500;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.calibration-start {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  gap: 15px;
+  z-index: 2501;
+}
+
+.calibration-btn {
+  padding: 12px 24px;
+  font-size: 16px;
+  font-weight: bold;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  min-width: 140px;
+}
+
+.calibration-btn:not(.secondary) {
+  background-color: #007bff;
+  color: white;
+}
+
+.calibration-btn:not(.secondary):hover {
+  background-color: #0056b3;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 123, 255, 0.3);
+}
+
+.calibration-btn.secondary {
+  background-color: #6c757d;
+  color: white;
+}
+
+.calibration-btn.secondary:hover {
+  background-color: #545b62;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(108, 117, 125, 0.3);
+}
+
+.calibration-btn:disabled {
+  background-color: #e9ecef;
+  color: #6c757d;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.calibration-instruction {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background-color: rgba(0, 0, 0, 0.8);
+  color: white;
+  padding: 20px 40px;
+  border-radius: 10px;
+  text-align: center;
+  z-index: 2502;
+}
+
+.calibration-instruction p {
+  margin: 0;
+  font-size: 24px;
+  font-weight: bold;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
+}
+
+/* Full Canvas Overlay */
+.canvas-overlay {
+  position: fixed;
+  top: 0;
+  left: 320px; /* Start after left panel */
+  right: 200px; /* End before right panel */
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.7);
+  z-index: 2400;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none; /* Allow cursor to be visible */
+}
+
+/* Removed center target styles - no longer needed */
+
+@keyframes bounce-face {
+  0%, 20%, 50%, 80%, 100% { transform: translate(-50%, -50%) scale(1); }
+  40% { transform: translate(-50%, -50%) scale(1.2); }
+  60% { transform: translate(-50%, -50%) scale(1.1); }
+}
+
+/* Calibration Direction Indicators */
+.calibration-direction-indicators {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.calibration-direction-arrow {
+  position: absolute;
+  font-size: 64px;
+  color: #007bff;
+  font-weight: bold;
+  opacity: 0;
+  transform: scale(0.5);
+  transition: all 0.3s ease;
+  text-shadow: 0 0 20px rgba(0, 123, 255, 0.8);
+}
+
+.calibration-direction-arrow.active {
+  opacity: 1;
+  transform: scale(1);
+  animation: pulse-calibration-arrow 1s infinite;
+}
+
+.calibration-direction-arrow.left {
+  left: 50px;
+  top: 50%;
+  transform: translateY(-50%) scale(0.5);
+}
+
+.calibration-direction-arrow.right {
+  right: 50px;
+  top: 50%;
+  transform: translateY(-50%) scale(0.5);
+}
+
+.calibration-direction-arrow.up {
+  top: 50px;
+  left: 50%;
+  transform: translateX(-50%) scale(0.5);
+}
+
+.calibration-direction-arrow.down {
+  bottom: 50px;
+  left: 50%;
+  transform: translateX(-50%) scale(0.5);
+}
+
+.calibration-direction-arrow.left.active {
+  transform: translateY(-50%) scale(1);
+}
+
+.calibration-direction-arrow.right.active {
+  transform: translateY(-50%) scale(1);
+}
+
+.calibration-direction-arrow.up.active {
+  transform: translateX(-50%) scale(1);
+}
+
+.calibration-direction-arrow.down.active {
+  transform: translateX(-50%) scale(1);
+}
+
+@keyframes pulse-calibration-arrow {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+/* Calibration button in main interface */
+#calibration-button-container {
+  position: fixed;
+  bottom: 20px;
+  right: 10px;
+  z-index: 1000;
+}
+
+#calibrationBtn {
+  background-color: #007bff;
+  color: white;
+  padding: 12px 20px;
+  font-size: 14px;
+  font-weight: bold;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(0, 123, 255, 0.3);
+}
+
+#calibrationBtn:hover {
+  background-color: #0056b3;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 123, 255, 0.4);
+}

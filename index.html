@@ -39,6 +39,31 @@
       </div>
     </div>
 
+    <!-- Calibration Overlay -->
+    <div id="calibration-overlay" class="calibration-overlay hidden">
+      <!-- Simple Canvas Overlay -->
+      <div id="calibration-canvas-overlay" class="canvas-overlay" style="display: none;">
+        <!-- Direction indicators -->
+        <div id="calibration-direction-indicators" class="calibration-direction-indicators hidden">
+          <div class="calibration-direction-arrow left">←</div>
+          <div class="calibration-direction-arrow right">→</div>
+          <div class="calibration-direction-arrow up">↑</div>
+          <div class="calibration-direction-arrow down">↓</div>
+        </div>
+        
+        <!-- Simple instruction text -->
+        <div id="calibration-instruction" class="calibration-instruction">
+          <p id="calibration-instruction-text">Move your head as far LEFT as possible</p>
+        </div>
+      </div>
+      
+      <!-- Start button -->
+      <div class="calibration-start">
+        <button id="start-calibration" class="calibration-btn">Start Calibration</button>
+        <button id="skip-calibration" class="calibration-btn secondary">Skip Calibration</button>
+      </div>
+    </div>
+
     <div id="controls">
       <!-- Drawing Controls -->
       <div class="menu-section" id="drawing-controls">
@@ -90,6 +115,11 @@
         <button id="circleTemplate" class="template-btn" data-template="circle">Circle (8)</button>
         <button id="parallelogramTemplate" class="template-btn" data-template="parallelogram">Parallelogram (9)</button>
       </div>
+    </div>
+
+    <!-- Calibration Button (Bottom Right) -->
+    <div id="calibration-button-container">
+      <button id="calibrationBtn" class="calibration-btn">Head Calibration (F1)</button>
     </div>
 
     <canvas id="template-canvas"></canvas>
